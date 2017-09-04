@@ -1,0 +1,168 @@
+---
+title: "Week #1: dplyr, tidyr, & ggplot2"
+author: "Zoë Hawks"
+date: "9/3/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("/Users/zashawks/Desktop/PNL/PKU/Verbal Fluency/")
+mydata_wide <- read.csv("VerbalFluency_StrategicProcessing.csv", header=TRUE)
+mydata_long <- read.csv("NJ_data_3.csv")
+mydata_dob <- read.csv("IQ_VF_participants.csv")
+
+setwd("/Users/zashawks/Desktop/Stats/Longitudinal/ALDA")
+library(tidyverse)
+```
+
+#Dataset #1: wide to long
+```{r}
+wide_to_long <- mydata_wide %>%
+  gather(-ID2, key = "timepoint", value = "value") %>%
+  separate(timepoint, into = c("Omit", "Time", "Omit2", "Variable"), sep = c(1,2, 3)) %>%
+  select(-Omit, -Omit2) %>%
+  spread(key = Variable, value = value)
+
+wide_to_long <- wide_to_long[1:201, ]
+head(wide_to_long)
+```
+
+#Dataset #2: long to wide
+```{r}
+long_to_wide <- mydata_long %>%
+  gather(-(ID2:TP), key = "variable", value = "value") %>%
+  unite(varT, variable, TP) %>%
+  spread(key = varT, value = value) %>%
+  select(-Baseline_2, -Baseline_3) %>%
+  rename("Baseline" = "Baseline_1")
+head(long_to_wide)
+```
+
+#Dataset #3: merging dataframes, creating wave (timepoint) and date (dob, dot) variables
+```{r}
+library(lubridate)
+mydata_dob2 <- mydata_dob %>%
+  select(IDNUMBER, GENDER, GROUP, L1dob, L1age, L1dot,
+         L2dob, L2age, L2dot, L3dob, L3age, L3dot) %>%
+  mutate_at(c(4, 6, 7, 9, 10, 12), as.character) %>%
+  rename(ID2 = IDNUMBER, L1_dob = L1dob, L1_age = L1age, L1_dot = L1dot,
+         L2_dob = L2dob, L2_age = L2age, L2_dot = L2dot, L3_dob = L3dob, L3_age = L3age, L3_dot = L3dot)
+
+mydata_merged <- left_join(mydata_wide, mydata_dob2)
+head(mydata_merged)
+
+wide_to_long2 <- mydata_merged %>%
+  gather(-ID2, -GENDER, -GROUP, key = "timepoint", value = "value") %>%
+  separate(timepoint, into = c("Omit", "Timepoint", "Omit2", "Variable"), sep = c(1,2, 3)) %>%
+  select(-Omit, -Omit2) %>%
+  spread(key = Variable, value = value) %>%
+  drop_na() %>%
+  mutate(dob = mdy(dob), dot = mdy(dot)) 
+
+wide_to_long2 <- wide_to_long2[1:200, ]
+head(wide_to_long2)
+```
+
+#Sample size at each wave of assessment
+```{r}
+  #Dataset 1: 
+  Descriptives <- wide_to_long2 %>%
+    group_by(GROUP, Timepoint) %>%
+    summarise(n())
+  print(Descriptives)
+
+  #Dataset 2: additional observations
+  mydata_dob2$baselinedate <- mydata_dob2$L1_dot
+  wide_to_long3 <- mydata_dob2 %>%
+    gather(-ID2, -GENDER, -GROUP, -baselinedate, key = "timepoint", value = "value") %>%
+    separate(timepoint, into = c("Omit", "Timepoint", "Omit2", "Variable"), sep = c(1,2, 3)) %>%
+    select(-Omit, -Omit2) %>%
+    spread(key = Variable, value = value) %>%
+    drop_na() %>%
+    mutate(dob = mdy(dob), dot = mdy(dot), baselinedate = mdy(baselinedate)) 
+  
+  wide_to_long_merged <- full_join(wide_to_long2, wide_to_long3)
+  head(wide_to_long_merged)
+  
+  Descriptives2 <- wide_to_long_merged %>%
+    group_by(GROUP, Timepoint) %>%
+    summarise(n())
+  print(Descriptives2) 
+```
+
+#Converting date
+```{r}
+  #age
+  wide_to_long_merged$Age_days <- round(as.duration(wide_to_long_merged$dob %--% wide_to_long_merged$dot)/ddays(1), 1)
+  wide_to_long_merged$Age_weeks <- round(as.duration(wide_to_long_merged$dob %--% wide_to_long_merged$dot)/dweeks(1), 1)
+  wide_to_long_merged$Age_years <- round(as.duration(wide_to_long_merged$dob %--% wide_to_long_merged$dot)/dyears(1), 1)
+  
+    #comparing computed age variable to original age variable in dataset
+    wide_to_long_merged$sanity_check <- as.numeric(wide_to_long_merged$age) - wide_to_long_merged$Age_years
+    mean(wide_to_long_merged$sanity_check) #looks like our pre-calculated age variable may have been slightly off?
+    table((wide_to_long_merged$sanity_check > 1)) #error < 1 year in all cases
+  
+  #time in study
+  wide_to_long_merged$TIS_days <- round(as.duration(wide_to_long_merged$baselinedate %--% wide_to_long_merged$dot)/ddays(1))
+  wide_to_long_merged$TIS_weeks <- round(as.duration(wide_to_long_merged$baselinedate %--% wide_to_long_merged$dot)/dweeks(1))
+  wide_to_long_merged$TIS_years <- round(as.duration(wide_to_long_merged$baselinedate %--% wide_to_long_merged$dot)/dyears(1))
+  #View(arrange(wide_to_long_merged, Timepoint))
+```
+
+#Visualizing data
+```{r}
+  #With age (in years) along the x-axis
+  wide_to_long_merged$GENDER <- as.factor(wide_to_long_merged$GENDER)
+  wide_to_long_merged$GROUP <- as.factor(wide_to_long_merged$GROUP)
+  wide_to_long_merged$animal_TotalCorrect <- as.numeric(wide_to_long_merged$animal_TotalCorrect)
+  wide_to_long_merged$food_TotalCorrect <- as.numeric(wide_to_long_merged$food_TotalCorrect)
+  
+  levels(wide_to_long_merged$GROUP)[levels(wide_to_long_merged$GROUP)==2] <- "Controls"
+  levels(wide_to_long_merged$GROUP)[levels(wide_to_long_merged$GROUP)==1] <- "PKU"
+  
+  wide_to_long_merged$Sem_TotalCorrect <- (wide_to_long_merged$animal_TotalCorrect + wide_to_long_merged$food_TotalCorrect)
+    
+  p <- ggplot(data = wide_to_long_merged, aes(x = Age_years, y = Sem_TotalCorrect, group = GROUP))
+  p + geom_line(aes(colour=GROUP, group=ID2), alpha = .4) + 
+    stat_smooth(aes(colour = GROUP), method = "lm", se = TRUE, size = 1.8) +
+    scale_color_brewer(palette="Set2") + 
+    ylab("Semantic TotalCorrect") +
+    xlab("Age (in years)") +
+    xlim(6, 24) +
+    ggtitle("Verbal Fluency Performance x Age") +
+    theme(plot.title = element_text(hjust = 0.5))
+
+  #With study time (in weeks) along the x-axis
+  q <- ggplot(data = wide_to_long_merged, aes(x = TIS_weeks, y = Sem_TotalCorrect, group = GROUP))
+  q + geom_line(aes(group=ID2), color = "gray47", alpha = .4) + 
+    stat_smooth(aes(colour = GROUP), method = "loess", se = FALSE, size = 1.8) +
+    scale_color_brewer(palette="Set2") + 
+    ylab("Semantic TotalCorrect") +
+    xlab("Time in Study (in weeks)") +
+    ggtitle("Verbal Fluency Performance x Time in Study") +
+    xlim(-2, 175) +
+    theme(plot.title = element_text(hjust = 0.5)) + 
+    facet_grid(. ~ GROUP)
+```
+  
+#Correlation DV across time
+```{r}
+long_to_wide_merged <- wide_to_long_merged %>%
+  select(-sanity_check) %>%
+  gather(-(ID2:Timepoint), key = "variable", value = "value") %>%
+  unite(varT, variable, Timepoint) %>%
+  spread(key = varT, value = value) %>%
+  select(-baselinedate_2, -baselinedate_3) %>%
+  rename("baselinedate" = "baselinedate_1") %>%
+  mutate_at(c("Sem_TotalCorrect_1", "Sem_TotalCorrect_2", "Sem_TotalCorrect_3"), as.numeric)
+
+new.df <- subset(long_to_wide_merged, select = c(Sem_TotalCorrect_1, Sem_TotalCorrect_2, Sem_TotalCorrect_3))
+cor(new.df, use = "pairwise.complete.obs")
+
+library(psych)
+pairs.panels(new.df, hist.col = "cornflowerblue", density = TRUE, ellipses = FALSE, lm = T)
+```
