@@ -17,6 +17,7 @@ mydata_dob <- read.csv("IQ_VF_participants.csv")
 
 setwd("/Users/zashawks/Desktop/Stats/Longitudinal/ALDA")
 library(tidyverse)
+library(tibble)
 ```
 
 #Dataset #1: wide to long
@@ -28,7 +29,8 @@ wide_to_long <- mydata_wide %>%
   spread(key = Variable, value = value)
 
 wide_to_long <- wide_to_long[1:201, ]
-head(wide_to_long)
+wide_to_long <- as_tibble(wide_to_long)
+wide_to_long
 ```
 
 #Dataset #2: long to wide
@@ -39,7 +41,8 @@ long_to_wide <- mydata_long %>%
   spread(key = varT, value = value) %>%
   select(-Baseline_2, -Baseline_3) %>%
   rename("Baseline" = "Baseline_1")
-head(long_to_wide)
+long_to_wide <- as_tibble(long_to_wide)
+long_to_wide
 ```
 
 #Dataset #3: merging dataframes, creating wave (timepoint) and date (dob, dot) variables
@@ -53,7 +56,8 @@ mydata_dob2 <- mydata_dob %>%
          L2_dob = L2dob, L2_age = L2age, L2_dot = L2dot, L3_dob = L3dob, L3_age = L3age, L3_dot = L3dot)
 
 mydata_merged <- left_join(mydata_wide, mydata_dob2)
-head(mydata_merged)
+mydata_merged <- as_tibble(mydata_merged)
+mydata_merged
 
 wide_to_long2 <- mydata_merged %>%
   gather(-ID2, -GENDER, -GROUP, key = "timepoint", value = "value") %>%
@@ -64,7 +68,8 @@ wide_to_long2 <- mydata_merged %>%
   mutate(dob = mdy(dob), dot = mdy(dot)) 
 
 wide_to_long2 <- wide_to_long2[1:200, ]
-head(wide_to_long2)
+wide_to_long2 <- as_tibble(wide_to_long2)
+wide_to_long2
 ```
 
 #Sample size at each wave of assessment
@@ -86,7 +91,8 @@ head(wide_to_long2)
     mutate(dob = mdy(dob), dot = mdy(dot), baselinedate = mdy(baselinedate)) 
   
   wide_to_long_merged <- full_join(wide_to_long2, wide_to_long3)
-  head(wide_to_long_merged)
+  wide_to_long_merged <- as_tibble(wide_to_long_merged)
+  wide_to_long_merged
   
   Descriptives2 <- wide_to_long_merged %>%
     group_by(GROUP, Timepoint) %>%
