@@ -100,9 +100,10 @@ Resid.var <- summary[1,3]^2
 Resid.var
 ```
 
-Average intercept = 39.50 corrects words (at mean age)
-Average slope = 1.70 correct words/year
-Residual variance = 71.58
+Average intercept = 39.50 corrects words (at mean age)  
+Average slope = 1.70 correct words/year  
+Residual variance = 71.58  
+___  
 
 ##Item 2: Now run a mlm/lmer model with only a random intercept. What is the ICC? What does residual variance look like compared to linear model? Create a graph to show this effect.
 ```{r}
@@ -140,12 +141,13 @@ ResidPlot <- ggplot(dataframe, aes(Type, Mean)) +
 ResidPlot + labs(y="Average Residual (+/- SD)", x = "Type of Model") 
 ```
 
-Fixed effects: average intercept = 38.72 correct words
-Slope = 0 
-ICC = .49
-Residual variance = 52.95
+Fixed effects: average intercept = 38.72 correct words  
+Slope = 0  
+ICC = .49  
+Residual variance = 52.95  
 
 Residual variance (i.e., variance not accounted for by model) is much samller in the mixed-effect model compared to the linear model (Item 1), even though linear model uses age as a predictor whereas MLM model does not.
+___  
 
 ##Item 3: Introduce a fixed slope term. What is the difference in terms of the fixed effects estimates between this estimate and the previous? Of the residual standard error? Create a graph to show both fixed effects estimates and the CIs around them.
 ```{r}
@@ -169,14 +171,15 @@ FixedPlot <- ggplot(dataframe, aes(x = reorder(Type, -Mean), Mean)) +
 FixedPlot + labs(y="Fixed Effect (95% CI)", x = "Type of Model") 
 ```
 
-Fixed effects: average intercept = 39.62 correct words at mean age
-Fixed effects: average slope = 1.86 correct words/year
-Residual variance = 40.32
-Residual standard error = 6.35
-Psuedo R2 fixed = .34
-Pseudo R2 fixed + random = .63
+Fixed effects: average intercept = 39.62 correct words at mean age  
+Fixed effects: average slope = 1.86 correct words/year  
+Residual variance = 40.32  
+Residual standard error = 6.35  
+Psuedo R2 fixed = .34  
+Pseudo R2 fixed + random = .63  
 
-The fixed effects estimate for the intercept is greater than it was previously (40.32 vs. 38.72) and the residual variance is smaller (40.32 vs. 52.95). This makes sense; as we add IVs to our model, we would expect to be able to account for more variance.
+The fixed effects estimate for the intercept is greater than it was previously (40.32 vs. 38.72) and the residual variance is smaller (40.32 vs. 52.95). This makes sense; as we add IVs to our model, we would expect to be able to account for more variance. 
+___
 
 ##Item 4: Run an additional model with a random slope. How does this change compare to the previous model? Should you keep the random slope or not?
 ```{r}
@@ -186,16 +189,19 @@ anova(lin.mlm)
 r.squaredGLMM(lin.mlm)
 ```
 
-Fixed effects: average intercept = 40.10 correct words at mean age
-Fixed effects: average slope = 2.05 words/year
-Residual variance = 37.38
-Pseudo R2 fixed = .38
-Pseudo R2 fixed + random = .69
+Fixed effects: average intercept = 40.10 correct words at mean age  
+Fixed effects: average slope = 2.05 words/year  
+Residual variance = 37.38  
+Pseudo R2 fixed = .38  
+Pseudo R2 fixed + random = .69  
 
-Adding a random slope slightly decreases the average intercept (40.10 vs. 40.32), increases the average slope (2.05 vs. 1.86), and reduces residual variance (37.38 vs. 40.32). I think it's worthwhile keeping the random slope because total variance attributable to fixed and random effects, as evaluated by pseudo R2, increases roughly 6%.
+Adding a random slope slightly decreases the average intercept (40.10 vs. 40.32), increases the average slope (2.05 vs. 1.86), and reduces residual variance (37.38 vs. 40.32). I think it's worthwhile keeping the random slope because total variance attributable to fixed and random effects, as evaluated by pseudo R2, increases roughly 6%.  
+___
 
 ##Item 5: Interpret the correlation between the slope and the intercept.
-The fixed effects correlation = .36. This suggests a medium-sized relationship between the average intercept and the average slope wherein greater intercepts (i.e., more words correct) are associated with steeper slopes (i.e., faster rate of improvement in words correct). However, this association is not so large so as to be redundant. The random effects correlation (r = .45) models the relationship between intercept and slope on the individual level, designating the correlation between an individual's deviation from the average intercept and their deviation from the average slope.
+
+The fixed effects correlation = .36. This suggests a medium-sized relationship between the average intercept and the average slope wherein greater intercepts (i.e., more words correct) are associated with steeper slopes (i.e., faster rate of improvement in words correct). However, this association is not so large so as to be redundant. The random effects correlation (r = .45) models the relationship between intercept and slope on the individual level, designating the correlation between an individual's deviation from the average intercept and their deviation from the average slope.  
+___
 
 ##Item 6: Create a density plot of the random effects from your final model.
 ```{r}
@@ -217,13 +223,16 @@ ggplot(graph2, aes(mean)) +
 
 ```
 
+___
+
 ##Item 7: Create a catepilar plot of the random effects. Is there any person that seems odd in terms of a large standard errors around intercept and slope estimates?
 ```{r}
 graph3 <- plotREsim(re.sim, labs = T)
 graph3
 ```
 
-There are 11 individuals (highlighted in black) whose effect ranges for the intercept differ significantly from the group average. However, by and large, standard errors around the intercept and slope values all seem to be within normal limits (294270 might be on the higher side of this range with respect to intercept).
+There are 11 individuals (highlighted in black) whose effect ranges for the intercept differ significantly from the group average. However, by and large, standard errors around the intercept and slope values all seem to be within normal limits (294270 might be on the higher side of this range with respect to intercept).  
+___
 
 ##Item 8: Create a plot of the trajectory, along with a spaghetti plot of each person’s individual slope. Set the alpha level (transparency) on the individual slopes to make them easier to see.
 ```{r}
