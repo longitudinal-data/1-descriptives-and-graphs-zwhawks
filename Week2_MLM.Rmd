@@ -1,0 +1,248 @@
+---
+title: 'Week #2: MLM'
+author: "Zoë Hawks"
+date: "9/10/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Importing data
+```{r}
+setwd("/Users/zashawks/Desktop/PNL/PKU/Verbal Fluency/")
+mydata_wide <- read.csv("VerbalFluency_StrategicProcessing.csv", header=TRUE)
+mydata_long <- read.csv("NJ_data_3.csv")
+mydata_dob <- read.csv("IQ_VF_participants.csv")
+
+setwd("/Users/zashawks/Desktop/Stats/Longitudinal/ALDA")
+library(tidyverse)
+library(tibble)
+library(lubridate)
+```
+
+##Setting up dataframe
+```{r}
+mydata_dob2 <- mydata_dob %>%
+  select(IDNUMBER, GENDER, GROUP, L1dob, L1age, L1dot,
+         L2dob, L2age, L2dot, L3dob, L3age, L3dot) %>%
+  mutate_at(c(4, 6, 7, 9, 10, 12), as.character) %>%
+  rename(ID2 = IDNUMBER, L1_dob = L1dob, L1_age = L1age, L1_dot = L1dot,
+         L2_dob = L2dob, L2_age = L2age, L2_dot = L2dot, L3_dob = L3dob, L3_age = L3age, L3_dot = L3dot)
+
+mydata_merged <- left_join(mydata_wide, mydata_dob2)
+
+wide_to_long2 <- mydata_merged %>%
+  gather(-ID2, -GENDER, -GROUP, key = "timepoint", value = "value") %>%
+  separate(timepoint, into = c("Omit", "Timepoint", "Omit2", "Variable"), sep = c(1,2, 3)) %>%
+  select(-Omit, -Omit2) %>%
+  spread(key = Variable, value = value) %>%
+  drop_na() %>%
+  mutate(dob = mdy(dob), dot = mdy(dot)) 
+wide_to_long2 <- wide_to_long2[1:200, ]
+
+mydata_dob2$baselinedate <- mydata_dob2$L1_dot
+wide_to_long3 <- mydata_dob2 %>%
+  gather(-ID2, -GENDER, -GROUP, -baselinedate, key = "timepoint", value = "value") %>%
+  separate(timepoint, into = c("Omit", "Timepoint", "Omit2", "Variable"), sep = c(1,2, 3)) %>%
+  select(-Omit, -Omit2) %>%
+  spread(key = Variable, value = value) %>%
+  drop_na() %>%
+  mutate(dob = mdy(dob), dot = mdy(dot), baselinedate = mdy(baselinedate)) 
+  
+wide_to_long_merged <- full_join(wide_to_long2, wide_to_long3)
+wide_to_long_merged <- as_tibble(wide_to_long_merged)
+wide_to_long_merged
+
+#Converting date  
+#Age
+wide_to_long_merged$Age_days <- round(as.duration(wide_to_long_merged$dob %--%
+                                                    wide_to_long_merged$dot)/ddays(1), 1)
+wide_to_long_merged$Age_weeks <- round(as.duration(wide_to_long_merged$dob %--%
+                                                     wide_to_long_merged$dot)/dweeks(1), 1)
+wide_to_long_merged$Age_years <- round(as.duration(wide_to_long_merged$dob %--%
+                                                     wide_to_long_merged$dot)/dyears(1), 1)
+  
+#Time in study
+wide_to_long_merged$TIS_days <- round(as.duration(wide_to_long_merged$baselinedate %--%
+                                                    wide_to_long_merged$dot)/ddays(1))
+wide_to_long_merged$TIS_weeks <- round(as.duration(wide_to_long_merged$baselinedate %--%
+                                                     wide_to_long_merged$dot)/dweeks(1))
+wide_to_long_merged$TIS_years <- round(as.duration(wide_to_long_merged$baselinedate %--%
+                                                     wide_to_long_merged$dot)/dyears(1))
+
+#Adjust type
+wide_to_long_merged$GENDER <- as.factor(wide_to_long_merged$GENDER)
+wide_to_long_merged$GROUP <- as.factor(wide_to_long_merged$GROUP)
+wide_to_long_merged$age <- as.numeric(wide_to_long_merged$age)
+wide_to_long_merged$animal_TotalCorrect <- as.numeric(wide_to_long_merged$animal_TotalCorrect)
+wide_to_long_merged$food_TotalCorrect <- as.numeric(wide_to_long_merged$food_TotalCorrect)
+  
+levels(wide_to_long_merged$GROUP)[levels(wide_to_long_merged$GROUP)==2] <- "Controls"
+levels(wide_to_long_merged$GROUP)[levels(wide_to_long_merged$GROUP)==1] <- "PKU"
+  
+wide_to_long_merged$Sem_TotalCorrect <- (wide_to_long_merged$animal_TotalCorrect +
+                                           wide_to_long_merged$food_TotalCorrect)
+
+```
+
+##Item 1: Run linear models on all of your subjects (a basic regression). What is the average intercept, the average slope?
+```{r}
+wide_to_long_merged$age.centered <- wide_to_long_merged$age - mean(wide_to_long_merged$age, na.rm = T)
+
+lin.mod <- lm(Sem_TotalCorrect ~ age.centered, data = wide_to_long_merged)
+summary(lin.mod)
+anova(lin.mod)
+
+summary <- broom::glance(lin.mod)
+Resid.var <- summary[1,3]^2
+Resid.var
+```
+
+Average intercept = 39.50 corrects words (at mean age)
+Average slope = 1.70 correct words/year
+Residual variance = 71.58
+
+##Item 2: Now run a mlm/lmer model with only a random intercept. What is the ICC? What does residual variance look like compared to linear model? Create a graph to show this effect.
+```{r}
+library(lme4)
+library(stats)
+library(ggplot2)
+
+lin.mlm <- lmer(Sem_TotalCorrect ~ (1 | ID2), data = wide_to_long_merged)
+summary(lin.mlm)
+lin.mlm.ci1 <- confint(lin.mlm, level = .95, oldNames = F)
+lin.mlm.ci1
+summary1 <- broom::tidy(lin.mlm)
+summary1
+
+ICC.mlm <- summary1[2,2]^2/(summary1[2,2]^2 + summary1[3,2]^2)
+ICC.mlm
+
+#plotting residuals
+mlm.aug <- abs(broom::augment(lin.mlm)[,c(4)])
+head(mlm.aug)
+mean.mlm = mean(mlm.aug)
+sd.mlm = sd(mlm.aug)
+
+lin.aug <- abs(broom::augment(lin.mod)[,5])
+head(lin.aug)
+mean.lin <- mean(lin.aug)
+sd.lin <- sd(lin.aug)
+
+dataframe <- data.frame("Type" = c("LinMod", "MLMMod"), 
+                        "Mean" = c(mean.lin, mean.mlm), "SD"= c(sd.lin, sd.mlm))
+
+ResidPlot <- ggplot(dataframe, aes(Type, Mean)) + 
+                   geom_col(fill = "cornflowerblue") +  
+                   geom_errorbar(aes(ymin = Mean - SD, ymax = Mean + SD), width=0.2)
+ResidPlot + labs(y="Average Residual (+/- SD)", x = "Type of Model") 
+```
+
+Fixed effects: average intercept = 38.72 correct words
+Slope = 0 
+ICC = .49
+Residual variance = 52.95
+
+Residual variance (i.e., variance not accounted for by model) is much samller in the mixed-effect model compared to the linear model (Item 1), even though linear model uses age as a predictor whereas MLM model does not.
+
+##Item 3: Introduce a fixed slope term. What is the difference in terms of the fixed effects estimates between this estimate and the previous? Of the residual standard error? Create a graph to show both fixed effects estimates and the CIs around them.
+```{r}
+library(MuMIn)
+lin.mlm <- lmer(Sem_TotalCorrect ~ age.centered + (1 | ID2), data = wide_to_long_merged)
+summary(lin.mlm)
+lin.mlm.ci <- confint(lin.mlm, level = .95, oldNames = F)
+lin.mlm.ci
+summary1 <- broom::tidy(lin.mlm)
+r.squaredGLMM(lin.mlm)
+
+#Graphing fixed effects
+dataframe <- data.frame("Type" = c("LinMod_Intercept", "MLMMod_Intercept", "MLMMod_Age"), 
+                        "Mean" = c(38.72, summary1[1,2], summary1[2,2]), 
+                        "CILower"= c(lin.mlm.ci1[3,1], lin.mlm.ci[3,1], lin.mlm.ci[4,1]),
+                        "CIUpper" = c(lin.mlm.ci1[3,2], lin.mlm.ci[3,2], lin.mlm.ci[4,2]))
+
+FixedPlot <- ggplot(dataframe, aes(x = reorder(Type, -Mean), Mean)) + 
+                   geom_col(fill = "cornflowerblue") +  
+                   geom_errorbar(aes(ymin = CILower, ymax = CIUpper), width=0.2)
+FixedPlot + labs(y="Fixed Effect (95% CI)", x = "Type of Model") 
+```
+
+Fixed effects: average intercept = 39.62 correct words at mean age
+Fixed effects: average slope = 1.86 correct words/year
+Residual variance = 40.32
+Residual standard error = 6.35
+Psuedo R2 fixed = .34
+Pseudo R2 fixed + random = .63
+
+The fixed effects estimate for the intercept is greater than it was previously (40.32 vs. 38.72) and the residual variance is smaller (40.32 vs. 52.95). This makes sense; as we add IVs to our model, we would expect to be able to account for more variance.
+
+##Item 4: Run an additional model with a random slope. How does this change compare to the previous model? Should you keep the random slope or not?
+```{r}
+lin.mlm <- lmer(Sem_TotalCorrect ~ age.centered + (age.centered | ID2), data = wide_to_long_merged)
+summary(lin.mlm)
+anova(lin.mlm)
+r.squaredGLMM(lin.mlm)
+```
+
+Fixed effects: average intercept = 40.10 correct words at mean age
+Fixed effects: average slope = 2.05 words/year
+Residual variance = 37.38
+Pseudo R2 fixed = .38
+Pseudo R2 fixed + random = .69
+
+Adding a random slope slightly decreases the average intercept (40.10 vs. 40.32), increases the average slope (2.05 vs. 1.86), and reduces residual variance (37.38 vs. 40.32). I think it's worthwhile keeping the random slope because total variance attributable to fixed and random effects, as evaluated by pseudo R2, increases roughly 6%.
+
+##Item 5: Interpret the correlation between the slope and the intercept.
+The fixed effects correlation = .36. This suggests a medium-sized relationship between the average intercept and the average slope wherein greater intercepts (i.e., more words correct) are associated with steeper slopes (i.e., faster rate of improvement in words correct). However, this association is not so large so as to be redundant. The random effects correlation (r = .45) models the relationship between intercept and slope on the individual level, designating the correlation between an individual's deviation from the average intercept and their deviation from the average slope.
+
+##Item 6: Create a density plot of the random effects from your final model.
+```{r}
+library(merTools)
+re.sim <- REsim(lin.mlm)
+head(re.sim)
+
+#Density Intercept
+graph1 <- re.sim %>% 
+  filter(term == "(Intercept)") 
+ggplot(graph1, aes(mean)) +
+  geom_density()
+
+#Density age
+graph2 <- re.sim %>% 
+  filter(term == "age.centered") 
+ggplot(graph2, aes(mean)) +
+  geom_density()
+
+```
+
+##Item 7: Create a catepilar plot of the random effects. Is there any person that seems odd in terms of a large standard errors around intercept and slope estimates?
+```{r}
+graph3 <- plotREsim(re.sim, labs = T)
+graph3
+```
+
+There are 11 individuals (highlighted in black) whose effect ranges for the intercept differ significantly from the group average. However, by and large, standard errors around the intercept and slope values all seem to be within normal limits (294270 might be on the higher side of this range with respect to intercept).
+
+##Item 8: Create a plot of the trajectory, along with a spaghetti plot of each person’s individual slope. Set the alpha level (transparency) on the individual slopes to make them easier to see.
+```{r}
+Predict <- predictInterval(merMod = lin.mlm, newdata = wide_to_long_merged, level = 0.9, n.sims = 100, 
+                           stat = "median", include.resid.var = TRUE)
+head(Predict)
+wide_to_long_merged$fit <- Predict$fit
+wide_to_long_merged$upr <- Predict$upr
+wide_to_long_merged$lwr <- Predict$lwr
+
+wide_to_long_merged$Age_years <- as.numeric(wide_to_long_merged$Age_years)
+
+ggplot(aes(x=Age_years, y=fit), data=wide_to_long_merged) +
+  geom_point() +
+  stat_smooth(method = lm, se = F) +
+  labs(x="Age", y="Semantic Total Correct (w/ prediction intervals)") + theme_bw() +
+  stat_smooth(aes(x = Age_years, y = upr), method = lm, se = F, alpha = .3, linetype = "dashed") +
+  stat_smooth(aes(x = Age_years, y = lwr), method = lm, se = F, alpha = .3, linetype = "dashed")+
+  geom_line(data = wide_to_long_merged, aes(x = Age_years, y = fit, group=ID2), alpha = .3) +
+  coord_cartesian(xlim = c(7,21), ylim = c(20,62)) +
+  theme_classic()
+```
