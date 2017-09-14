@@ -245,6 +245,7 @@ wide_to_long_merged$lwr <- Predict$lwr
 
 wide_to_long_merged$Age_years <- as.numeric(wide_to_long_merged$Age_years)
 
+#Spaghetti plot 1
 ggplot(aes(x=Age_years, y=fit), data=wide_to_long_merged) +
   geom_point() +
   stat_smooth(method = lm, se = F) +
@@ -252,6 +253,21 @@ ggplot(aes(x=Age_years, y=fit), data=wide_to_long_merged) +
   stat_smooth(aes(x = Age_years, y = upr), method = lm, se = F, alpha = .3, linetype = "dashed") +
   stat_smooth(aes(x = Age_years, y = lwr), method = lm, se = F, alpha = .3, linetype = "dashed")+
   geom_line(data = wide_to_long_merged, aes(x = Age_years, y = fit, group=ID2), alpha = .3) +
+  coord_cartesian(xlim = c(7,21), ylim = c(20,62)) +
+  theme_classic()
+
+#Spaghetti plot 2
+ggplot(aes(x=Age_years, y=fit), data=wide_to_long_merged) +
+  #geom_point() +
+  stat_smooth(method = lm, se = F, aes(x = Age_years, y = fit, group=ID2), alpha = .3, 
+              color = "lightsteelblue3") +
+  stat_smooth(method = lm, se = F, color = "royalblue4") +
+  labs(x="Age", y="Semantic Total Correct (w/ prediction intervals)") + theme_bw() +
+  stat_smooth(aes(x = Age_years, y = upr), method = lm, se = F, alpha = .3, linetype = "dashed", 
+              color = "royalblue4") +
+  stat_smooth(aes(x = Age_years, y = lwr), method = lm, se = F, alpha = .3, linetype = "dashed",
+              color = "royalblue4")+
+  #geom_line(data = wide_to_long_merged, aes(x = Age_years, y = fit, group=ID2), alpha = .3) +
   coord_cartesian(xlim = c(7,21), ylim = c(20,62)) +
   theme_classic()
 ```
