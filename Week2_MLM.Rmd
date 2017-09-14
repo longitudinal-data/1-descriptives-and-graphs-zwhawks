@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-##Importing data
+##Importing datasets
 ```{r}
 setwd("/Users/zashawks/Desktop/PNL/PKU/Verbal Fluency/")
 mydata_wide <- read.csv("VerbalFluency_StrategicProcessing.csv", header=TRUE)
