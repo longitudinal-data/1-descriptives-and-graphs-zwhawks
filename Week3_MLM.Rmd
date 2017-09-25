@@ -106,8 +106,30 @@ wide_to_long_merged$Sem_TotalCorrect <- (wide_to_long_merged$animal_TotalCorrect
 wide_to_long_merged$age.centered <- wide_to_long_merged$age - mean(wide_to_long_merged$age, na.rm = T)
 ```
 
-##Problem #1:  
-Run a series of models using a time-invariant nominal covariate. a) where the covariate only predicts the intercept b) predicts both intercept and slope c) is rescaled eg centering. For all models, how does your model change from model to model. What is your final model?
+##Problem 1:  
+Run a series of models using a time-invariant nominal covariate. a) where the covariate only predicts the intercept b) predicts both intercept and slope c) is rescaled eg centering. For all models, how does your model change from model to model. What is your final model?  
+  
+*Part A: Fixed effect estimates*  
+`Intercept` = 40.57; mean of Controls at mean age (age.centered = 0)  
+`Age.centered` = 2.05; increase in words correct/year for all participants  
+`Group` = -1.4; difference in words correct between Control and PKU at mean age (age.centered = 0)  
+`Pseudo-R2` = .38 (marginal; fixed) and .69 (conditional; fixed + random)  
+
+*Part B: Fixed effect estimates*  
+`Intercept` = 40.93; mean of Controls at mean age (age.centered = 0)    
+`Age.centered` = 2.33; increase in words correct/year for Controls  
+`Group` = -2.25; difference in words correct between Control and PKU age mean age (age.centered = 0)  
+`Age.centered:GROUP` = -.77; difference in slope between Control and PKU  
+`Pseudo-R2` = .38 (marginal; fixed) and .70 (conditional; fixed + random)  
+
+*Part C: Fixed effect estimates*  
+`Intercept` = 38.69; mean of PKU at mean age (age.centered = 0)  
+`Age.centered` = 1.56; increase in words correct/year for PKU  
+`Group` = 2.25; difference in words correct between PKU and Controls at mean age (age.centered = 0)  
+`Age.centered:GROUP` = .77; difference in slope between PKU and Control  
+`Pseudo-R2` = .38 (marginal; fixed) and .70 (conditional; fixed + random)  
+  
+**Likelihood ratio test suggests that simpler model, where covariate only predicts intercept, is preferred.**  
 ```{r Problem1, warning = FALSE}
 #Model from HW #2
 library(lme4)
@@ -145,29 +167,30 @@ r.squaredGLMM(lin.nom3)
 #Likelihood ratio test
 anova(lin.nom1, lin.nom2)
 ```
-*Part A:*  
-Fixed effect intercept = 40.57; mean of Controls  
-Age.centered = 2.05; increase in words correct/year for all participants (cov. only predicts intercept)  
-Group = -1.4; difference in words correct between Control and PKU when age.centered = 0  
-Pseudo-R2 = .38 (marginal; fixed) and .69 (conditional; fixed + random)  
-
-*Part B:*  
-Fixed effect intercept = 40.93; mean of Controls  
-Age.centered = 2.33; increase in words correct/year for Controls  
-Group = -2.25; difference in words correct between Control and PKU when age.centered = 0  
-Age.centered:GROUP = -.77; difference in slope between Control and PKU  
-Pseudo-R2 = .38 (marginal; fixed) and .70 (conditional; fixed + random)  
-
-*Part C:*  
-Fixed effect intercept = 38.69; mean of PKU  
-Age.centered = 1.56; increase in words correct/year for PKU  
-Group = 2.25; difference in words correct between PKU and Controls when age.centered = 0  
-Age.centered:GROUP = .77; difference in slope between PKU and Control  
-Pseudo-R2 = .38 (marginal; fixed) and .70 (conditional; fixed + random)  
-  
-**Likelihood ratio test suggests that simpler model, where covariate only predicts intercept, is preferred. However, age:group interaction term is theoretically important, so choosing lin.nom2 as the final model for Problem 3.**  
   
 ##Problem 2:  
+  
+*Part A: Fixed effect estimates*  
+`Intercept` = 37.46; mean across all participants at means levels of age (i.e., age.centered = 0) and when baselinePho = 0  
+`Age.centered` = 1.91; slope (increase in words correct/year) at when baselinePho = 0  
+`baselinePho` = .13; slope (increase in words correct/unit of baselinePho) at mean age (age.centered = 0)  
+`Pseudo-R2` = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
+
+*Part B: Fixed effect estimates*  
+`Intercept` = 37.46; mean across all participants at mean age (age.centered = 0) and when baselinePho = 0  
+`Age.centered` = 1.80; slope (increase in words correct/year) when baselinePho = 0  
+`baselinePho` = .13; slope (increase in words correct/unit of baselinePho) at mean age (age.centered = 0)    
+`Age.centered:baselinePho` = .006; extent to which relationship between age.centered and Sem_Total_Correct changes at different levels of baselinePho (change is minimal)  
+`Pseudo-R2` = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
+
+*Part C: Fixed effect estimates*  
+`Intercept` = 39.94; mean across all participants at means levels of age and baselinePho (i.e., age.centered and baselinePho.centered = 0)  
+`Age.centered` = 1.90; slope (increase in words correct/year) at mean levels of baselinePho (baselinePho.centered = 0)  
+`baselinePho` = .13; slope (increase in words correct/unit of baselinePho) at mean age (age.centered = 0)  
+`Age.centered:baselinePho` = .006; extent to which relationship between age.centered and Sem_Total_Correct changes at different levels of baselinePho (change is minimal; this does not change as a function of centering)  
+`Pseudo-R2` = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
+  
+**Likelihood ratio test suggests that simpler model, where covariate only predicts intercept, is preferred.**  
 ```{r Problem2, warning = FALSE}
 #Part a: adding baselinePho, a time-invariant continuous covariate that only predicts the intercept
 lin.cont1 <- lmer(Sem_TotalCorrect ~ age.centered + baselinePho + 
@@ -195,64 +218,50 @@ r.squaredGLMM(lin.cont3)
 #Likelihood ratio test
 anova(lin.cont1, lin.cont2)
 ```
-*Part A:*  
-Fixed effect intercept = 37.46; mean when age.centered and baselinePho = 0  
-Age.centered = 1.91; slope when baselinePho = 0  
-baselinePho = .13; slope when age.centered = 0  
-Pseudo-R2 = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
-
-*Part B:*  
-Fixed effect intercept = 37.46; mean when age.centered and baselinePho = 0  
-Age.centered = 1.80; slope when baselinePho = 0  
-baselinePho = .13; slope when age.centered = 0    
-Age.centered:baselinePho = .006; extent to which relationship between age.centered and Sem_Total_Correct changes at different levels of baselinePho (change is minimal)  
-Pseudo-R2 = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
-
-*Part C:*  
-Fixed effect intercept = 39.94; mean when age.centered and baselinePho (now mean centered) = 0  
-Age.centered = 1.90; slope when baselinePho = 0  
-baselinePho = .13; slope when age.centered = 0  
-Age.centered:baselinePho = .006; extent to which relationship between age.centered and Sem_Total_Correct changes at different levels of baselinePho (change is minimal; does not change as a function of centering)  
-Pseudo-R2 = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
-  
-**Likelihood ratio test suggests that simpler model, where covariate only predicts intercept, is preferred. However, age:baselinePhe interaction term is theoretically important, so choosing lin.cont2 as the final model for Problem 3.**  
 
 ##Problem 3:  
 Graph both of your final models for the continuous and nominal models above.
 ```{r Problem3, warning = FALSE}
 #Graphing nominal
 library(sjPlot)
+sjp.lmer(lin.nom1, type = "pred.fe", var = c("age.centered", "GROUP"), facet = FALSE, show.scatter = FALSE)
 sjp.int(lin.nom2, swap.pred = T)
 
 #Graphing continuous
-sjp.int(lin.cont2, swap.pred = T, mdrt.values = "meansd", plevel = 1)
+sjp.lmer(lin.cont1, type = "pred", var = c("age.centered"), show.scatter = FALSE, show.ci = TRUE)
+sjp.int(lin.cont2, swap.pred = T, mdrt.values = "meansd")
 ```
 
 ##Problem 4:  
 Calculate confidence intervals around your estimates for your final models  
 ```{r Problem4, warning = FALSE}
 #Confidence intervals around nominal model
-lin.nom.ci <- confint(lin.nom2, level = .95, oldNames = F)
+lin.nom.ci <- confint(lin.nom1, level = .95, oldNames = F, method = "boot", nsim = 100)
 broom::tidy(lin.nom.ci)
 
 #Confidence intervals around continuous model
-lin.cont.ci <- confint.merMod(lin.cont2, level = .95, oldNames = F)
+lin.cont.ci <- confint.merMod(lin.cont1, level = .95, oldNames = F, method = "boot", nsim = 100)
 broom::tidy(lin.cont.ci)
 ```
 
 ##Problem 5:  
-Include both types of covariates in a single model. How does your interpretation of parameters change?
+Include both types of covariates in a single model. How does your interpretation of parameters change?  
+  
+*Fixed effect estimates:*  
+`Intercept` = 40.94; mean of Controls at mean levels of age and baselinePho (i.e., age.centered and baselinePho.centered = 0)  
+`Age.centered` = 2.25; slope of Controls (increase in words correct/year) at mean levels of baselinePho (i.e., baselinePho.centered = 0)  
+`baselinePho.centered` = .10; slope of Controls (increase in words correct/unit of baselinePho) at mean levels of age (i.e., age.centered = 0)  
+`GROUP` = -2.73; difference in words correct between Control and PKU at mean levels of age and baselinePho (i.e., when age.centered and baselinePho.centered = 0)  
+`age.centered:baselinePho.centered` = -.02; extent to which relationship between age.centered and Sem_TotalCorrect changes at different levels of baselinePho.centered, when group = Controls  
+`age.centered:GROUP` = -.63; extent to which relationship between age.centered and Sem_TotalCorrect changes at different levels of GROUP, when baselinePho.centered = 0  
+`baselinePho.centered:GROUP` = -.05; extent to which relationship between baselinePho.centered and Sem_TotalCorrect changes at different levels of GROUP, when age.centered = 0  
+`age.centered:baselinePho.centered:GROUP` = .09; extent to which the interaction between age.centered and baselinePho.centered changes at different levels of GROUP  
+`Pseudo-R2` = .39 (marginal; fixed) and .70 (conditional; fixed + random)  
 ```{r Problem 5}
 wide_to_long_merged$GROUP <- relevel(wide_to_long_merged$GROUP, ref = "Control")
-lin.comb <- lmer(Sem_TotalCorrect ~ age.centered + baselinePho.centered + GROUP + age.centered:GROUP +
+lin.comb <- lmer(Sem_TotalCorrect ~ age.centered*baselinePho.centered*GROUP +
                    (age.centered | ID2), data = wide_to_long_merged)
 summary(lin.comb)
 anova(lin.comb)
 r.squaredGLMM(lin.comb)
 ```
-Fixed effect intercept = 40.74; mean when age.centered = 0, baselinePho.centered = 0, and GROUP = Control  
-Age.centered = 2.22; slope when baselinePho.centered = 0 and GROUP = Control  
-baselinePho.centered = .09; slope age.centered = 0 and GROUP = Control  
-GROUP = -1.88; difference in words correct between Control and PKU when age.centered and baselinePho.centered = 0  
-age.centered:GROUP = difference in slope between Control and PKU as a function of age.centered, when baselinePho.centered = 0  
-Pseudo-R2 = .39 (marginal; fixed) and .70 (conditional; fixed + random)  
