@@ -111,8 +111,8 @@ Run a series of models using a time-invariant nominal covariate. a) where the co
   
 *Part A: Fixed effect estimates*  
 `Intercept` = 40.57; mean of Controls at mean age (age.centered = 0)  
-`Age.centered` = 2.05; increase in words correct/year for all participants  
-`Group` = -1.4; difference in words correct between Control and PKU at mean age (age.centered = 0)  
+`Age.centered` = 2.05; increase in words correct/year controlling for Group  
+`Group` = -1.4; difference in words correct between Control and PKU controlling for mean age  
 `Pseudo-R2` = .38 (marginal; fixed) and .69 (conditional; fixed + random)  
 
 *Part B: Fixed effect estimates*  
@@ -172,8 +172,8 @@ anova(lin.nom1, lin.nom2)
   
 *Part A: Fixed effect estimates*  
 `Intercept` = 37.46; mean across all participants at means levels of age (i.e., age.centered = 0) and when baselinePho = 0  
-`Age.centered` = 1.91; slope (increase in words correct/year) at when baselinePho = 0  
-`baselinePho` = .13; slope (increase in words correct/unit of baselinePho) at mean age (age.centered = 0)  
+`Age.centered` = 1.91; slope (increase in words correct/year) controlling for baselinePho  
+`baselinePho` = .13; slope (increase in words correct/unit of baselinePho) controlling for Age.centered  
 `Pseudo-R2` = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
 
 *Part B: Fixed effect estimates*  
