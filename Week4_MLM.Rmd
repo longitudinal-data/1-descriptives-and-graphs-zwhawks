@@ -1,0 +1,417 @@
+---
+title: "Week4 MLM"
+author: "Zoë Hawks"
+date: "9/28/2017"
+output: 
+  pdf_document:
+    keep_tex: yes
+    toc: yes
+    includes:
+      in_header: 
+        header.tex
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r functions, include = FALSE}
+#Loading table_fun
+table_fun <- function(model){
+  fixed <- broom::tidy(model) %>% filter(group == "fixed") %>%
+    select(term, estimate)
+  ## add random effects ##
+  rand <- broom::tidy(model) %>% filter(group != "fixed") %>%
+    select(term, estimate)
+  ## get confidence intervals ##
+  CI <- data.frame(confint.merMod(model, method = "boot", nsim = 10)) %>%
+    mutate(term = rownames(.)) %>% setNames(c("lower", "upper", "term"))
+  
+  ## Get ICC & R2 values ##
+  ICC <- reghelper::ICC(model)
+  R2 <- MuMIn::r.squaredGLMM(model)
+  ## format the fixed effects
+  fixed <- fixed %>% left_join(CI %>% filter(!grepl(".sig", term))) %>%
+    mutate(type = "Fixed Parts")
+  rand <- rand %>%
+    mutate(estimate = ifelse(grepl("cor", term) == T, estimate, estimate^2),
+          term = mapvalues(term, unique(term), 
+           c("$\\tau_{00}$", "$\\tau_{11}$", "$\\tau_{10}$", "$\\hat{\\sigma^2}$"))) %>%
+    left_join(
+      CI %>% filter(grepl(".sig", term)) %>%
+        mutate(term = mapvalues(term, unique(term), 
+            c("$\\tau_{00}$", "$\\tau_{10}$", "$\\tau_{11}$", "$\\hat{\\sigma^2}$")),
+            lower = lower^2, upper = upper^2)) %>%
+    mutate(type = "Random Parts")
+
+  mod_terms <- tribble(
+    ~term, ~estimate, ~type,
+    "ICC", ICC, "Model Terms", "$R^2_m$", R2[1], 
+    "Model Terms", "$R^2_c$", R2[2], "Model Terms"
+    )
+  
+  tab <- fixed %>%
+    full_join(rand) %>%
+    mutate(CI = sprintf("(%.2f, %.2f)", lower, upper)) %>% select(-lower, -upper) %>%
+    full_join(mod_terms) %>%
+    mutate(estimate = sprintf("%.2f", estimate)) %>% select(type, everything())
+}
+```
+
+
+```{r import, include = FALSE}
+#importing datasets
+setwd("/Users/zashawks/Desktop/PNL/PKU/Verbal Fluency/")
+mydata_wide <- read.csv("VerbalFluency_StrategicProcessing.csv", header=TRUE)
+mydata_long <- read.csv("NJ_data_3.csv")
+mydata_dob <- read.csv("IQ_VF_participants.csv")
+
+setwd("/Users/zashawks/Desktop/Stats/Longitudinal/ALDA")
+library(tidyverse)
+library(tibble)
+library(lubridate)
+```
+
+```{r setup2, include = FALSE}
+#setting up dataframe
+mydata_dob2 <- mydata_dob %>%
+  select(IDNUMBER, GENDER, GROUP, L1dob, L1age, L1dot,
+         L2dob, L2age, L2dot, L3dob, L3age, L3dot) %>%
+  mutate_at(c(4, 6, 7, 9, 10, 12), as.character) %>%
+  rename(ID2 = IDNUMBER, L1_dob = L1dob, L1_age = L1age, L1_dot = L1dot,
+         L2_dob = L2dob, L2_age = L2age, L2_dot = L2dot, L3_dob = L3dob, L3_age = L3age, L3_dot = L3dot)
+
+mydata_merged <- left_join(mydata_wide, mydata_dob2)
+
+mydata_merged$L1_S_TotalCorrect <- as.numeric(mydata_merged$L1_S_TotalCorrect)
+mydata_merged$L1_f_TotalCorrect <- as.numeric(mydata_merged$L1_f_TotalCorrect)
+mydata_merged$L1_Pho_TotalCorrect <- (mydata_merged$L1_f_TotalCorrect +
+                                           mydata_merged$L1_S_TotalCorrect)
+
+mydata_merged$L2_S_TotalCorrect <- as.numeric(mydata_merged$L2_S_TotalCorrect)
+mydata_merged$L2_f_TotalCorrect <- as.numeric(mydata_merged$L2_f_TotalCorrect)
+mydata_merged$L2_Pho_TotalCorrect <- (mydata_merged$L2_f_TotalCorrect +
+                                           mydata_merged$L2_S_TotalCorrect)
+
+mydata_merged$L3_S_TotalCorrect <- as.numeric(mydata_merged$L3_S_TotalCorrect)
+mydata_merged$L3_f_TotalCorrect <- as.numeric(mydata_merged$L3_f_TotalCorrect)
+mydata_merged$L3_Pho_TotalCorrect <- (mydata_merged$L3_f_TotalCorrect +
+                                           mydata_merged$L3_S_TotalCorrect)
+
+mydata_merged$baselinePho <- mydata_merged$L1_Pho_TotalCorrect
+wide_to_long2 <- mydata_merged %>%
+  gather(-ID2, -GENDER, -GROUP, -baselinePho, key = "timepoint", value = "value") %>%
+  separate(timepoint, into = c("Omit", "Timepoint", "Omit2", "Variable"), sep = c(1,2, 3)) %>%
+  select(-Omit, -Omit2) %>%
+  spread(key = Variable, value = value) %>%
+  drop_na() %>%
+  mutate(dob = mdy(dob), dot = mdy(dot)) 
+wide_to_long2 <- wide_to_long2[1:200, ]
+
+mydata_dob2$baselinedate <- mydata_dob2$L1_dot
+wide_to_long3 <- mydata_dob2 %>%
+  gather(-ID2, -GENDER, -GROUP, -baselinedate, key = "timepoint", value = "value") %>%
+  separate(timepoint, into = c("Omit", "Timepoint", "Omit2", "Variable"), sep = c(1,2, 3)) %>%
+  select(-Omit, -Omit2) %>%
+  spread(key = Variable, value = value) %>%
+  drop_na() %>%
+  mutate(dob = mdy(dob), dot = mdy(dot), baselinedate = mdy(baselinedate)) 
+  
+wide_to_long_merged <- full_join(wide_to_long2, wide_to_long3)
+wide_to_long_merged <- as_tibble(wide_to_long_merged)
+wide_to_long_merged
+
+#Converting date  
+#Age
+wide_to_long_merged$Age_days <- round(as.duration(wide_to_long_merged$dob %--%
+                                                    wide_to_long_merged$dot)/ddays(1), 1)
+wide_to_long_merged$Age_weeks <- round(as.duration(wide_to_long_merged$dob %--%
+                                                     wide_to_long_merged$dot)/dweeks(1), 1)
+wide_to_long_merged$Age_years <- round(as.duration(wide_to_long_merged$dob %--%
+                                                     wide_to_long_merged$dot)/dyears(1), 1)
+  
+#Time in study
+wide_to_long_merged$TIS_days <- round(as.duration(wide_to_long_merged$baselinedate %--%
+                                                    wide_to_long_merged$dot)/ddays(1))
+wide_to_long_merged$TIS_weeks <- round(as.duration(wide_to_long_merged$baselinedate %--%
+                                                     wide_to_long_merged$dot)/dweeks(1))
+wide_to_long_merged$TIS_years <- round(as.duration(wide_to_long_merged$baselinedate %--%
+                                                     wide_to_long_merged$dot)/dyears(1))
+
+#Adjust type
+wide_to_long_merged$GENDER <- as.factor(wide_to_long_merged$GENDER)
+wide_to_long_merged$GROUP <- as.factor(wide_to_long_merged$GROUP)
+wide_to_long_merged$age <- as.numeric(wide_to_long_merged$age)
+wide_to_long_merged$animal_TotalCorrect <- as.numeric(wide_to_long_merged$animal_TotalCorrect)
+wide_to_long_merged$food_TotalCorrect <- as.numeric(wide_to_long_merged$food_TotalCorrect)
+  
+levels(wide_to_long_merged$GROUP)[levels(wide_to_long_merged$GROUP)==2] <- "Control"
+levels(wide_to_long_merged$GROUP)[levels(wide_to_long_merged$GROUP)==1] <- "PKU"
+  
+wide_to_long_merged$Sem_TotalCorrect <- (wide_to_long_merged$animal_TotalCorrect +
+                                           wide_to_long_merged$food_TotalCorrect)
+
+wide_to_long_merged$age.centered <- wide_to_long_merged$age - mean(wide_to_long_merged$age, na.rm = T)
+```
+
+##Problem 1:  
+Run a series of models using a time-invariant nominal covariate. a) where the covariate only predicts the intercept b) predicts both intercept and slope c) is rescaled eg centering. For all models, how does your model change from model to model. What is your final model?  
+
+*From last week's homework, so code is suppressed.*  
+  
+**Part A: Fixed effect estimates**  
+* `Intercept` = 40.57; mean of Controls at mean age (age.centered = 0)  
+* `Age.centered` = 2.05; increase in words correct/year controlling for Group  
+* `Group` = -1.4; difference in words correct between Control and PKU controlling for mean age  
+* `Pseudo-R2` = .38 (marginal; fixed) and .69 (conditional; fixed + random)  
+
+**Part B: Fixed effect estimates**  
+* `Intercept` = 40.93; mean of Controls at mean age (age.centered = 0)    
+* `Age.centered` = 2.33; increase in words correct/year for Controls  
+* `Group` = -2.25; difference in words correct between Control and PKU age mean age (age.centered = 0)  
+* `Age.centered:GROUP` = -.77; difference in slope between Control and PKU  
+* `Pseudo-R2` = .38 (marginal; fixed) and .70 (conditional; fixed + random)  
+
+**Part C: Fixed effect estimates**  
+* `Intercept` = 38.69; mean of PKU at mean age (age.centered = 0)  
+* `Age.centered` = 1.56; increase in words correct/year for PKU  
+* `Group` = 2.25; difference in words correct between PKU and Controls at mean age (age.centered = 0)  
+* `Age.centered:GROUP` = .77; difference in slope between PKU and Control  
+* `Pseudo-R2` = .38 (marginal; fixed) and .70 (conditional; fixed + random)  
+  
+**Likelihood ratio test suggests that simpler model, where covariate only predicts intercept, is preferred.**  
+```{r Problem1, warning = FALSE, include = FALSE}
+#Model from HW #2
+library(lme4)
+library(MuMIn)
+wide_to_long_merged$Timepoint <- as.factor(wide_to_long_merged$Timepoint)
+lin.mlm <- lmer(Sem_TotalCorrect ~ age.centered + (age.centered | ID2), data = wide_to_long_merged)
+summary(lin.mlm)
+anova(lin.mlm)
+r.squaredGLMM(lin.mlm)
+
+#Part a: adding group, a time-invariant nominal covariate that only predicts the intercept
+wide_to_long_merged$GROUP <- relevel(wide_to_long_merged$GROUP, ref = "Control")
+lin.nom1 <- lmer(Sem_TotalCorrect ~ age.centered + GROUP + 
+                   (age.centered | ID2), data = wide_to_long_merged)
+summary(lin.nom1)
+anova(lin.nom1)
+r.squaredGLMM(lin.nom1)
+
+#Part b: adding group, a time-invariant nominal covariate the predicts intercept and slope
+wide_to_long_merged$GROUP <- relevel(wide_to_long_merged$GROUP, ref = "Control")
+lin.nom2 <- lmer(Sem_TotalCorrect ~ age.centered + GROUP + age.centered:GROUP +
+                   (age.centered | ID2), data = wide_to_long_merged)
+summary(lin.nom2)
+anova(lin.nom2)
+r.squaredGLMM(lin.nom2)
+
+#Part c: rescaling nominal variable (i.e., changing dummy coding such that refernce group becomes PKU)
+wide_to_long_merged$GROUP <- relevel(wide_to_long_merged$GROUP, ref = "PKU")
+lin.nom3 <- lmer(Sem_TotalCorrect ~ age.centered + GROUP + age.centered:GROUP +
+                   (age.centered | ID2), data = wide_to_long_merged)
+summary(lin.nom3)
+anova(lin.nom3)
+r.squaredGLMM(lin.nom3)
+
+#Likelihood ratio test
+anova(lin.nom1, lin.nom2)
+```
+  
+##Problem 2:  
+
+*From last week's homework, so output is suppressed.*  
+  
+**Part A: Fixed effect estimates**  
+* `Intercept` = 37.46; mean across all participants at means levels of age (i.e., age.centered = 0) and when baselinePho = 0  
+* `Age.centered` = 1.91; slope (increase in words correct/year) controlling for baselinePho  
+* `baselinePho` = .13; slope (increase in words correct/unit of baselinePho) controlling for Age.centered  
+* `Pseudo-R2` = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
+
+**Part B: Fixed effect estimates**  
+* `Intercept` = 37.46; mean across all participants at mean age (age.centered = 0) and when baselinePho = 0  
+* `Age.centered` = 1.80; slope (increase in words correct/year) when baselinePho = 0  
+* `baselinePho` = .13; slope (increase in words correct/unit of baselinePho) at mean age (age.centered = 0)    
+* `Age.centered:baselinePho` = .006; extent to which relationship between age.centered and Sem_Total_Correct changes at different levels of baselinePho (change is minimal)  
+* `Pseudo-R2` = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
+
+**Part C: Fixed effect estimates**  
+* `Intercept` = 39.94; mean across all participants at means levels of age and baselinePho (i.e., age.centered and baselinePho.centered = 0)  
+* `Age.centered` = 1.90; slope (increase in words correct/year) at mean levels of baselinePho (baselinePho.centered = 0)  
+* `baselinePho` = .13; slope (increase in words correct/unit of baselinePho) at mean age (age.centered = 0)  
+* `Age.centered:baselinePho` = .006; extent to which relationship between age.centered and Sem_Total_Correct changes at different levels of baselinePho (change is minimal; this does not change as a function of centering)  
+* `Pseudo-R2` = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
+  
+**Likelihood ratio test suggests that simpler model, where covariate only predicts intercept, is preferred.**  
+```{r Problem2, warning = FALSE, include = FALSE}
+#Part a: adding baselinePho, a time-invariant continuous covariate that only predicts the intercept
+lin.cont1 <- lmer(Sem_TotalCorrect ~ age.centered + baselinePho + 
+                   (age.centered | ID2), data = wide_to_long_merged)
+summary(lin.cont1)
+anova(lin.cont1)
+r.squaredGLMM(lin.cont1)
+
+#Part b: adding group, a time-invariant nominal covariate the predicts intercept and slope
+lin.cont2 <- lmer(Sem_TotalCorrect ~ age.centered + baselinePho + age.centered:baselinePho +
+                   (age.centered | ID2), data = wide_to_long_merged)
+summary(lin.cont2)
+anova(lin.cont2)
+r.squaredGLMM(lin.cont2)
+
+#Part c: rescaling nominal variable (i.e., centering baselinePho)
+wide_to_long_merged$baselinePho.centered <- wide_to_long_merged$baselinePho - 
+  mean(wide_to_long_merged$baselinePho, na.rm = T)
+lin.cont3 <- lmer(Sem_TotalCorrect ~ age.centered + baselinePho.centered + age.centered:baselinePho.centered +
+                   (age.centered | ID2), data = wide_to_long_merged)
+summary(lin.cont3)
+anova(lin.cont3)
+r.squaredGLMM(lin.cont3)
+
+#Likelihood ratio test
+anova(lin.cont1, lin.cont2)
+```
+
+##Problem 3:  
+Graph both of your final models for the continuous and nominal models above.
+```{r Problem3, warning = FALSE}
+#Graphing nominal, where covariate only predicts the intercept
+wide_to_long_merged$GROUP <- relevel(wide_to_long_merged$GROUP, ref = "PKU")
+fixed.frame <- data.frame(expand.grid(age.centered = seq(-10, 10, 4), 
+                                      GROUP = c("PKU", "Control"))) %>%
+  mutate(pred = predict(lin.nom1, newdata = ., re.form = NA))
+fixed.frame <- fixed.frame %>% mutate(age.new = age.centered + 13.61)
+
+library(ggplot2)
+a <- ggplot(aes(x = age.new, y = pred, color = GROUP), data = fixed.frame) +
+  geom_line() + 
+  labs(x = "Age", y = "Semantic Total Correct", title = "Semantic Total Correct by Age & Group") +
+  theme_classic() + 
+  theme(plot.title = element_text(hjust = .5))
+a
+
+#Graphing nominal, where covariate predicts both the slope and the intercept
+fixed.frame2 <- data.frame(expand.grid(age.centered = seq(-10, 10, 4), 
+                                      GROUP = c("PKU", "Control"))) %>%
+  mutate(pred = predict(lin.nom2, newdata = ., re.form = NA))
+fixed.frame2 <- fixed.frame2 %>% mutate(age.new = age.centered + 13.61)
+
+b <- ggplot(aes(x = age.new, y = pred, color = GROUP), data = fixed.frame2) +
+  geom_line() + 
+  labs(x = "Age", y = "Semantic Total Correct", title = "Semantic Total Correct by Age & Group") +
+  theme_classic() + 
+  theme(plot.title = element_text(hjust = .5))
+b
+
+#Graphing continuous, where covariate only predicts the intercept
+fixed.frame3 <- wide_to_long_merged %>%
+  summarise(mean = mean(baselinePho, na.rm = T),
+            sd = sd(baselinePho, na.rm = T))
+
+fixed.frame3 <- 
+  data.frame(
+    expand.grid(
+      age.centered = seq(-10, 10, 4), 
+      baselinePho = c(fixed.frame3$mean - fixed.frame3$sd,
+                      fixed.frame3$mean, 
+                      fixed.frame3$mean + fixed.frame3$sd))) %>%
+  mutate(pred = predict(lin.cont1, newdata = ., re.form = NA))
+fixed.frame3 <- fixed.frame3 %>% mutate(age.new = age.centered + 13.61,
+                                        BaselinePho = factor(baselinePho, 
+                                                             levels = unique(baselinePho), 
+                                                             labels = c("-1 SD", "Mean", "+1 SD")))
+
+c <- ggplot(aes(x = age.new, y = pred, color = BaselinePho), data = fixed.frame3) +
+  geom_line() + 
+  labs(x = "Age", y = "Semantic Total Correct", title = "Semantic Total Correct by Age & Group") +
+  theme_classic() + 
+  theme(plot.title = element_text(hjust = .5))
+c
+
+#Graphing continuous, where covariate predicts both the slope and the intercept
+fixed.frame4 <- wide_to_long_merged %>%
+  summarise(mean = mean(baselinePho, na.rm = T),
+            sd = sd(baselinePho, na.rm = T))
+
+fixed.frame4 <- 
+  data.frame(
+    expand.grid(
+      age.centered = seq(-10, 10, 4), 
+      baselinePho = c(fixed.frame4$mean - fixed.frame4$sd,
+                      fixed.frame4$mean, 
+                      fixed.frame4$mean + fixed.frame4$sd))) %>%
+  mutate(pred = predict(lin.cont2, newdata = ., re.form = NA))
+fixed.frame4 <- fixed.frame4 %>% mutate(age.new = age.centered + 13.61,
+                                        BaselinePho = factor(baselinePho, 
+                                                             levels = unique(baselinePho), 
+                                                             labels = c("-1 SD", "Mean", "+1 SD")))
+
+d <- ggplot(aes(x = age.new, y = pred, color = BaselinePho), data = fixed.frame4) +
+  geom_line() + 
+  labs(x = "Age", y = "Semantic Total Correct", title = "Semantic Total Correct by Age & Group") +
+  theme_classic() + 
+  theme(plot.title = element_text(hjust = .5))
+d
+```
+
+##Problem 4A:  
+Calculate confidence intervals around your estimates for your final models  
+```{r Problem4A, warning = FALSE, echo = FALSE}
+#Confidence intervals around nominal model
+lin.nom.ci <- confint(lin.nom1, level = .95, oldNames = F, method = "boot", nsim = 100)
+broom::tidy(lin.nom.ci)
+
+#Confidence intervals around continuous model
+lin.cont.ci <- confint.merMod(lin.cont1, level = .95, oldNames = F, method = "boot", nsim = 100)
+broom::tidy(lin.cont.ci)
+```
+
+##Problem 4B:  
+Create tables for both of your continous and nominal models above.  
+```{r Problem4B, warning = FALSE, results = 'asis'}
+#Nominal table
+library(reghelper)
+library(plyr)
+library(dplyr)
+tab <- table_fun(lin.nom2)
+
+library(papaja)
+papaja::apa_table(tab %>% select(-type), caption = "Nominal Table", na_string = "", 
+                  stub_indents = list(Fixed = c(1:4), Random = c(5:8), Model = c(9:11)))
+
+#Continuous table
+tab2 <- table_fun(lin.cont2)
+papaja::apa_table(tab2 %>% select(-type), caption = "Continuous Table", na_string = "", 
+                  stub_indents = list(Fixed = c(1:4), Random = c(5:8), Model = c(9:11)))
+```
+
+##Problem 5:  
+Include both types of covariates in a single model. How does your interpretation of parameters change?  
+
+*From last week's homework, so output is suppressed.*  
+  
+**Fixed effect estimates:**  
+* `Intercept` = 40.94; mean of Controls at mean levels of age and baselinePho (i.e., age.centered and baselinePho.centered = 0)  
+* `Age.centered` = 2.25; slope of Controls (increase in words correct/year) at mean levels of baselinePho (i.e., baselinePho.centered = 0)  
+* `baselinePho.centered` = .10; slope of Controls (increase in words correct/unit of baselinePho) at mean levels of age (i.e., age.centered = 0)  
+* `GROUP` = -2.73; difference in words correct between Control and PKU at mean levels of age and baselinePho (i.e., when age.centered and baselinePho.centered = 0)  
+* `age.centered:baselinePho.centered` = -.02; extent to which relationship between age.centered and Sem_TotalCorrect changes at different levels of baselinePho.centered, when group = Controls  
+* `age.centered:GROUP` = -.63; extent to which relationship between age.centered and Sem_TotalCorrect changes at different levels of GROUP, when baselinePho.centered = 0  
+* `baselinePho.centered:GROUP` = -.05; extent to which relationship between baselinePho.centered and Sem_TotalCorrect changes at different levels of GROUP, when age.centered = 0  
+* `age.centered:baselinePho.centered:GROUP` = .09; extent to which the interaction between age.centered and baselinePho.centered changes at different levels of GROUP  
+* `Pseudo-R2` = .39 (marginal; fixed) and .70 (conditional; fixed + random)  
+```{r Problem 5, echo = FALSE}
+wide_to_long_merged$GROUP <- relevel(wide_to_long_merged$GROUP, ref = "Control")
+lin.comb <- lmer(Sem_TotalCorrect ~ age.centered*baselinePho.centered*GROUP +
+                   (age.centered | ID2), data = wide_to_long_merged)
+summary(lin.comb)
+anova(lin.comb)
+r.squaredGLMM(lin.comb)
+```
+
+##Problem 6:  
+If you have one available, introduce a time-varying covariate.  
+```{r Problem 6}
+#TBC...
+```
