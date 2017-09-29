@@ -26,7 +26,7 @@ table_fun <- function(model){
   rand <- broom::tidy(model) %>% filter(group != "fixed") %>%
     select(term, estimate)
   ## get confidence intervals ##
-  CI <- data.frame(confint.merMod(model, method = "boot", nsim = 10)) %>%
+  CI <- data.frame(confint.merMod(model, method = "boot", nsim = 1000)) %>%
     mutate(term = rownames(.)) %>% setNames(c("lower", "upper", "term"))
   
   ## Get ICC & R2 values ##
@@ -157,17 +157,17 @@ wide_to_long_merged$age.centered <- wide_to_long_merged$age - mean(wide_to_long_
 ```
 
 ##Problem 1:  
-Run a series of models using a time-invariant nominal covariate. a) where the covariate only predicts the intercept b) predicts both intercept and slope c) is rescaled eg centering. For all models, how does your model change from model to model. What is your final model?  
-
-*From last week's homework, so code is suppressed.*  
+Run a series of models using a time-invariant nominal covariate. a) where the covariate only predicts the intercept b) predicts both intercept and slope c) is rescaled eg centering. For all models, how does your model change from model to model. What is your final model? *(From last week's homework, so code is suppressed.)*  
   
 **Part A: Fixed effect estimates**  
+
 * `Intercept` = 40.57; mean of Controls at mean age (age.centered = 0)  
 * `Age.centered` = 2.05; increase in words correct/year controlling for Group  
 * `Group` = -1.4; difference in words correct between Control and PKU controlling for mean age  
 * `Pseudo-R2` = .38 (marginal; fixed) and .69 (conditional; fixed + random)  
 
 **Part B: Fixed effect estimates**  
+
 * `Intercept` = 40.93; mean of Controls at mean age (age.centered = 0)    
 * `Age.centered` = 2.33; increase in words correct/year for Controls  
 * `Group` = -2.25; difference in words correct between Control and PKU age mean age (age.centered = 0)  
@@ -175,6 +175,7 @@ Run a series of models using a time-invariant nominal covariate. a) where the co
 * `Pseudo-R2` = .38 (marginal; fixed) and .70 (conditional; fixed + random)  
 
 **Part C: Fixed effect estimates**  
+
 * `Intercept` = 38.69; mean of PKU at mean age (age.centered = 0)  
 * `Age.centered` = 1.56; increase in words correct/year for PKU  
 * `Group` = 2.25; difference in words correct between PKU and Controls at mean age (age.centered = 0)  
@@ -220,17 +221,18 @@ r.squaredGLMM(lin.nom3)
 anova(lin.nom1, lin.nom2)
 ```
   
-##Problem 2:  
-
-*From last week's homework, so output is suppressed.*  
+##Problem 2: 
+Run a series of models using a time-invariant continuous covariate. *(From last week's homework, so output is suppressed.)*  
   
 **Part A: Fixed effect estimates**  
+
 * `Intercept` = 37.46; mean across all participants at means levels of age (i.e., age.centered = 0) and when baselinePho = 0  
 * `Age.centered` = 1.91; slope (increase in words correct/year) controlling for baselinePho  
 * `baselinePho` = .13; slope (increase in words correct/unit of baselinePho) controlling for Age.centered  
 * `Pseudo-R2` = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
 
 **Part B: Fixed effect estimates**  
+
 * `Intercept` = 37.46; mean across all participants at mean age (age.centered = 0) and when baselinePho = 0  
 * `Age.centered` = 1.80; slope (increase in words correct/year) when baselinePho = 0  
 * `baselinePho` = .13; slope (increase in words correct/unit of baselinePho) at mean age (age.centered = 0)    
@@ -238,6 +240,7 @@ anova(lin.nom1, lin.nom2)
 * `Pseudo-R2` = .39 (marginal; fixed) and .68 (conditional; fixed + random)  
 
 **Part C: Fixed effect estimates**  
+
 * `Intercept` = 39.94; mean across all participants at means levels of age and baselinePho (i.e., age.centered and baselinePho.centered = 0)  
 * `Age.centered` = 1.90; slope (increase in words correct/year) at mean levels of baselinePho (baselinePho.centered = 0)  
 * `baselinePho` = .13; slope (increase in words correct/unit of baselinePho) at mean age (age.centered = 0)  
@@ -275,7 +278,7 @@ anova(lin.cont1, lin.cont2)
 
 ##Problem 3:  
 Graph both of your final models for the continuous and nominal models above.
-```{r Problem3, warning = FALSE}
+```{r Problem3, warning = FALSE, message = FALSE}
 #Graphing nominal, where covariate only predicts the intercept
 wide_to_long_merged$GROUP <- relevel(wide_to_long_merged$GROUP, ref = "PKU")
 fixed.frame <- data.frame(expand.grid(age.centered = seq(-10, 10, 4), 
@@ -356,20 +359,20 @@ d
 ```
 
 ##Problem 4A:  
-Calculate confidence intervals around your estimates for your final models  
-```{r Problem4A, warning = FALSE, echo = FALSE}
+Calculate confidence intervals around your models  
+```{r Problem4A, warning = FALSE, message = FALSE, echo = FALSE}
 #Confidence intervals around nominal model
-lin.nom.ci <- confint(lin.nom1, level = .95, oldNames = F, method = "boot", nsim = 100)
+lin.nom.ci <- confint(lin.nom2, level = .95, oldNames = F, method = "boot", nsim = 1000)
 broom::tidy(lin.nom.ci)
 
 #Confidence intervals around continuous model
-lin.cont.ci <- confint.merMod(lin.cont1, level = .95, oldNames = F, method = "boot", nsim = 100)
+lin.cont.ci <- confint.merMod(lin.cont2, level = .95, oldNames = F, method = "boot", nsim = 1000)
 broom::tidy(lin.cont.ci)
 ```
 
 ##Problem 4B:  
 Create tables for both of your continous and nominal models above.  
-```{r Problem4B, warning = FALSE, results = 'asis'}
+```{r Problem4B, warning=FALSE, message = FALSE, results = 'asis'}
 #Nominal table
 library(reghelper)
 library(plyr)
@@ -377,9 +380,9 @@ library(dplyr)
 library(papaja)
 
 tab <- table_fun(lin.nom2)
-age.new <- as.character(round(as.numeric(tab$estimate[2]) + 
-                             mean(wide_to_long_merged$age, na.rm = T), 2))
-tab2 <- tab %>% mutate(estimate = mapvalues(estimate, from = tab$estimate[2], to = age.new),
+#age.new <- as.character(round(as.numeric(tab$estimate[2]) + 
+#                             mean(wide_to_long_merged$age, na.rm = T), 2))
+tab2 <- tab %>% mutate(#estimate = mapvalues(estimate, from = tab$estimate[2], to = age.new),
   term = mapvalues(term, from = tab$term[2:4], to = c("Age", "Group",
                                                       "Interaction")))
 papaja::apa_table(tab2 %>% select(-type), caption = "Group Model", na_string = "", 
@@ -390,9 +393,9 @@ papaja::apa_table(tab2 %>% select(-type), caption = "Group Model", na_string = "
 
 #Continuous table
 tab3 <- table_fun(lin.cont2)
-age.new <- as.character(round(as.numeric(tab3$estimate[2]) + 
-                             mean(wide_to_long_merged$age, na.rm = T), 2))
-tab4 <- tab3 %>%  mutate(estimate = mapvalues(estimate, from = tab3$estimate[2], to = age.new),
+#age.new <- as.character(round(as.numeric(tab3$estimate[2]) + 
+#                             mean(wide_to_long_merged$age, na.rm = T), 2))
+tab4 <- tab3 %>%  mutate(#estimate = mapvalues(estimate, from = tab3$estimate[2], to = age.new),
   term = mapvalues(term, from = tab3$term[2:4], to = c("Age",
                                                       "BaselinePho", "Interaction")))
 papaja::apa_table(tab4 %>% select(-type), caption = "Continuous Table", na_string = "",
@@ -403,11 +406,10 @@ papaja::apa_table(tab4 %>% select(-type), caption = "Continuous Table", na_strin
 ```
 
 ##Problem 5:  
-Include both types of covariates in a single model. How does your interpretation of parameters change?  
-
-*From last week's homework, so output is suppressed.*  
+Include both types of covariates in a single model. How does your interpretation of parameters change? *(From last week's homework, so output is suppressed.)*  
   
 **Fixed effect estimates:**  
+
 * `Intercept` = 40.94; mean of Controls at mean levels of age and baselinePho (i.e., age.centered and baselinePho.centered = 0)  
 * `Age.centered` = 2.25; slope of Controls (increase in words correct/year) at mean levels of baselinePho (i.e., baselinePho.centered = 0)  
 * `baselinePho.centered` = .10; slope of Controls (increase in words correct/unit of baselinePho) at mean levels of age (i.e., age.centered = 0)  
@@ -417,7 +419,8 @@ Include both types of covariates in a single model. How does your interpretation
 * `baselinePho.centered:GROUP` = -.05; extent to which relationship between baselinePho.centered and Sem_TotalCorrect changes at different levels of GROUP, when age.centered = 0  
 * `age.centered:baselinePho.centered:GROUP` = .09; extent to which the interaction between age.centered and baselinePho.centered changes at different levels of GROUP  
 * `Pseudo-R2` = .39 (marginal; fixed) and .70 (conditional; fixed + random)  
-```{r Problem 5, echo = FALSE}
+
+```{r Problem 5, include = FALSE}
 wide_to_long_merged$GROUP <- relevel(wide_to_long_merged$GROUP, ref = "Control")
 lin.comb <- lmer(Sem_TotalCorrect ~ age.centered*baselinePho.centered*GROUP +
                    (age.centered | ID2), data = wide_to_long_merged)
@@ -428,6 +431,28 @@ r.squaredGLMM(lin.comb)
 
 ##Problem 6:  
 If you have one available, introduce a time-varying covariate.  
-```{r Problem 6}
-#TBC...
+
+**Fixed effect estimates:**  
+
+* `Intercept` = 40.19; mean of Controls at mean levels of age and Pho_TC (i.e., age.centered and Pho_TC.centered = 0)  
+* `Age.centered` = 1.64; slope of Controls (increase in words correct/year) at mean levels of Pho_TC (i.e., Pho_TC.centered = 0)  
+* `Pho_TotalCorrect.centered` = .37; slope of Controls (increase in words correct/unit of Pho_TC) at mean levels of age (i.e., age.centered = 0)  
+* `GROUP` = -1.08; difference in words correct between Control and PKU at mean levels of age and Pho_TC (i.e., when age.centered and Pho_TC.centered = 0)  
+* `age.centered:Pho_TotalCorrect.centered` = -.03; extent to which relationship between age.centered and Sem_TotalCorrect changes at different levels of Pho_TC.centered, when group = Controls  
+* `age.centered:GROUP` = -.34; extent to which relationship between age.centered and Sem_TotalCorrect changes at different levels of GROUP, when Pho_TC.centered = 0  
+* `Pho_TotalCorrect.centered:GROUP` = -.13; extent to which relationship between Pho_TC.centered and Sem_TotalCorrect changes at different levels of GROUP, when age.centered = 0  
+* `age.centered:Pho_TotalCorrect.centered:GROUP` = .02; extent to which the interaction between age.centered and Pho_TC.centered changes at different levels of GROUP  
+* `Pseudo-R2` = .31 (marginal; fixed) and .70 (conditional; fixed + random)  
+
+```{r Problem 6, warning = FALSE, message = FALSE}
+wide_to_long_merged$GROUP <- relevel(wide_to_long_merged$GROUP, ref = "Control")
+wide_to_long_merged$Pho_TotalCorrect <- as.numeric(wide_to_long_merged$Pho_TotalCorrect)
+wide_to_long_merged$Pho_TotalCorrect.centered <- wide_to_long_merged$Pho_TotalCorrect - 
+  mean(wide_to_long_merged$Pho_TotalCorrect, na.rm = T)
+
+lin.comb.cont <- lmer(Sem_TotalCorrect ~ age.centered*Pho_TotalCorrect.centered*GROUP +
+                   (age.centered | ID2), data = wide_to_long_merged)
+summary(lin.comb.cont)
+anova(lin.comb.cont)
+r.squaredGLMM(lin.comb.cont)
 ```
