@@ -374,16 +374,32 @@ Create tables for both of your continous and nominal models above.
 library(reghelper)
 library(plyr)
 library(dplyr)
-tab <- table_fun(lin.nom2)
-
 library(papaja)
-papaja::apa_table(tab %>% select(-type), caption = "Nominal Table", na_string = "", 
-                  stub_indents = list(Fixed = c(1:4), Random = c(5:8), Model = c(9:11)))
+
+tab <- table_fun(lin.nom2)
+age.new <- as.character(round(as.numeric(tab$estimate[2]) + 
+                             mean(wide_to_long_merged$age, na.rm = T), 2))
+tab2 <- tab %>% mutate(estimate = mapvalues(estimate, from = tab$estimate[2], to = age.new),
+  term = mapvalues(term, from = tab$term[2:4], to = c("Age", "Group",
+                                                      "Interaction")))
+papaja::apa_table(tab2 %>% select(-type), caption = "Group Model", na_string = "", 
+                  stub_indents = list(Fixed = c(1:4), Random = c(5:8), Model = c(9:11)),
+                  col_spanners = list(`Semantic TC` = c(2,3)),
+                  col.names = c("Term", "Estimate", "CI"),
+                  align = c("l", "c", "c"))
 
 #Continuous table
-tab2 <- table_fun(lin.cont2)
-papaja::apa_table(tab2 %>% select(-type), caption = "Continuous Table", na_string = "", 
-                  stub_indents = list(Fixed = c(1:4), Random = c(5:8), Model = c(9:11)))
+tab3 <- table_fun(lin.cont2)
+age.new <- as.character(round(as.numeric(tab3$estimate[2]) + 
+                             mean(wide_to_long_merged$age, na.rm = T), 2))
+tab4 <- tab3 %>%  mutate(estimate = mapvalues(estimate, from = tab3$estimate[2], to = age.new),
+  term = mapvalues(term, from = tab3$term[2:4], to = c("Age",
+                                                      "BaselinePho", "Interaction")))
+papaja::apa_table(tab4 %>% select(-type), caption = "Continuous Table", na_string = "",
+                  stub_indents = list(Fixed = c(1:4), Random = c(5:8), Model = c(9:11)),
+                  col_spanners = list(`Semantic TC` = c(2,3)),
+                  col.names = c("Term", "Estimate", "CI"),
+                  align = c("l", "c", "c"))
 ```
 
 ##Problem 5:  
