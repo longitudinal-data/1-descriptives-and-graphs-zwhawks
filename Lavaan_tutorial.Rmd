@@ -1,0 +1,190 @@
+---
+title: "Lavaan tutorial"
+author: "Zoë Hawks"
+date: "10/20/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE}
+library(lavaan)
+library(tidyverse)
+```
+
+## Model 1: CFA
+```{r, warning = F}
+CFA.mod <- ' 
+            visual =~ x1 + x2 + x3
+            textual =~ x4 + x5 + x6
+            speech =~ x7 + x8 + x9 
+'
+
+fit <- cfa(CFA.mod, data=HolzingerSwineford1939)
+summary(fit, fit.measures = TRUE)
+```
+
+## Model 2: SEM
+```{r, warning = F}
+SEM.mod <- '
+    ind60 =~ x1 + x2 + x3         #indicators onto latent variables
+    dem60 =~ y1 + y2 + y3 + y4
+    dem65 =~ y5 + y6 + y7 + y8
+  
+    dem60 ~ ind60                 #regression equations
+    dem65 ~ ind60 + dem60
+  
+    y1 ~~ y5                      #residual correlations
+    y2 ~~ y4 + y6
+    y3 ~~ y7
+    y4 ~~ y8
+    y6 ~~ y8
+'
+
+fit <- sem(SEM.mod, data=PoliticalDemocracy)
+summary(fit, standardized=TRUE)
+```
+
+## Syntax, cont.
+```{r, warning = F}
+# if you want to constrain all COVARIANCES of latent variables to zero, 'orthogonal = TRUE'
+fit <- cfa(CFA.mod,
+                    data = HolzingerSwineford1939,
+                    orthogonal = TRUE)
+summary(fit, fit.measures = TRUE)
+
+# if you want to constrain all VARIANCES of latent variables to zero, 'std.lv = TRUE'
+fit <- cfa(CFA.mod,
+                    data = HolzingerSwineford1939,
+                    std.lv = TRUE)
+summary(fit, fit.measures = TRUE)
+coef1 <- broom::tidy(coef(fit))
+head(coef1)
+
+# Playing around with paramter lavels
+# Note: providing starting value != fixing factor loading
+CFA.mod <- ' 
+            visual =~ x1 + x2 + HEY*x3
+            textual =~ x4 + x5 + x6
+            speech =~ x7 + YO*x8 + start(0.9)*x9 
+'
+fit <- cfa(CFA.mod, data = HolzingerSwineford1939)
+summary(fit, fit.measures = TRUE)
+coef1 <- broom::tidy(coef(fit))
+head(coef1)
+
+# Specifying equality -- x3, x8, and x9 all the same
+CFA.mod <- ' 
+            visual =~ x1 + x2 + a*x3
+            textual =~ x4 + x5 + x6
+            speech =~ x7 + a*x8 + a*x9 
+'
+fit <- cfa(CFA.mod, data = HolzingerSwineford1939)
+summary(fit, fit.measures = TRUE)
+coef1 <- broom::tidy(coef(fit))
+head(coef1)
+
+# Setting constraints
+set.seed(1234)
+mydata <- data.frame(y = rnorm(100),
+                   x1 = rnorm(100),
+                   x2 = rnorm(100),
+                   x3 = rnorm(100))
+
+new.mod <- ' y ~ b1*x1 + b2*x2 + b3*x3    # model 
+                 
+            b1 == (b2 + b3)^2             # constraints
+            b1 > exp(b2 + b3) '
+fit <- sem(new.mod, data=mydata)
+coef(fit)
+
+# Bringing in the means
+
+  # can fix intercepts, e.g. variable ~ 1
+  # can specify 'meanstructure = TRUE' when fitting model
+  # by default, sem() and cfa() fix latent variable intercepts to zero
+  # In practice, the only reason why a user would add intercept-formulas in the model syntax, is because        some constraints must be specified on them. For example, suppose that we wish to fix the intercepts of      the variables x1, x2, x3 and x4 to, say, 0.5. 
+```
+
+## Multiple groups
+```{r, warning = FALSE}
+# add 'group' argument within fit formula --> able to estimate different fits for different groups
+fit <- cfa(CFA.mod,
+           data = HolzingerSwineford1939,
+           group = "school")
+summary(fit)
+
+# If you want to fix parameters, or provide starting values, you can use the same pre-multiplication techniques, but the single argument is now replaced by a vector of arguments, one for each group. 
+Group.mod <- '  
+              visual =~ .5*x1 + c(a,a)*x2 + c(a,a)*x3
+              textual =~ x4 + x5 + c(.5, .7)*x6
+              speed   =~ c(1, NA)*x7 + x8 + x9 
+'
+fit <- cfa(Group.mod,
+           data = HolzingerSwineford1939,
+           group = "school")
+summary(fit)
+head(broom::tidy(coef(fit)))
+
+# What if we want constraints for a large number of parameters to be equal across groups?
+# Use 'group.equal' argument within fit function
+# For 'group.equal,' might also specify: intercepts, means, residuals, residual.covariances, lv.variances, lv.covariances, regressions
+fit <- cfa(CFA.mod,
+           data = HolzingerSwineford1939,
+           group = "school",
+           group.equal = c("loadings"))
+summary(fit)
+
+# What if we want all but a few constraints to be equal across groups?
+# Use 'group.partial' argument within fit function to specify parameters that should remain free
+fit <- cfa(CFA.mod,
+           data = HolzingerSwineford1939,
+           group = "school",
+           group.equal = c("loadings", "intercepts"),
+           group.partial = c("visual=~x2", "x7~1"))
+
+# Measurement invariance
+# To test the measurement invariance of a CFA model across several groups; each model is compared to the baseline model and the previous model using chi-square difference tests.
+library(semTools)
+measurementInvariance(CFA.mod,
+                      data = HolzingerSwineford1939,
+                      group = "school")
+```
+
+##Growth curve models
+```{r, warning = FALSE}
+# Random effects are used to capture individual differences. The random effects are conveniently represented by (continuous) latent variables, often called growth factors (??)
+
+# linear growth model with 4 timepoints
+# to specify intercept: coefficients stable across timepoints
+# to specify slope: coefficients increment across timepoints
+Growth.mod <- ' i =~ 1*t1 + 1*t2 + 1*t3 + 1*t4 
+            s =~ 0*t1 + 1*t2 + 2*t3 + 3*t4 '
+fit <- growth(Growth.mod, data=Demo.growth)
+summary(fit)
+
+# a linear growth model with a time-varying covariate (c) and two regressors (x1 & x2) that influence the latent growth factors
+model <- '
+  # intercept and slope with fixed coefficients
+    i =~ 1*t1 + 1*t2 + 1*t3 + 1*t4
+    s =~ 0*t1 + 1*t2 + 2*t3 + 3*t4
+  # regressions
+    i ~ x1 + x2
+    s ~ x1 + x2
+  # time-varying covariates
+    t1 ~ c1
+    t2 ~ c2
+    t3 ~ c3
+    t4 ~ c4
+'
+fit <- growth(model, data = Demo.growth)
+summary(fit)
+
+# left off on page 28
+# library(semPlot)
+# semPath(fit, layout = L, rotation = 3, exoVar = FALSE)
+```
+
+
