@@ -9,13 +9,16 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, warning=FALSE}
+```{r, warning=FALSE, message = FALSE}
 library(lavaan)
 library(tidyverse)
+library(XML)
+library(OpenMx)
+library(semPlot)
 ```
 
 ## Model 1: CFA
-```{r, warning = F}
+```{r, warning = F, message = F}
 CFA.mod <- ' 
             visual =~ x1 + x2 + x3
             textual =~ x4 + x5 + x6
@@ -24,6 +27,7 @@ CFA.mod <- '
 
 fit <- cfa(CFA.mod, data=HolzingerSwineford1939)
 summary(fit, fit.measures = TRUE)
+semPaths(fit, whatLabels = "est")
 ```
 
 ## Model 2: SEM
@@ -45,6 +49,7 @@ SEM.mod <- '
 
 fit <- sem(SEM.mod, data=PoliticalDemocracy)
 summary(fit, standardized=TRUE)
+semPaths(fit, whatLabels = "est")
 ```
 
 ## Syntax, cont.
@@ -61,7 +66,7 @@ fit <- cfa(CFA.mod,
                     std.lv = TRUE)
 summary(fit, fit.measures = TRUE)
 coef1 <- broom::tidy(coef(fit))
-head(coef1)
+coef1
 
 # Playing around with paramter lavels
 # Note: providing starting value != fixing factor loading
@@ -73,7 +78,7 @@ CFA.mod <- '
 fit <- cfa(CFA.mod, data = HolzingerSwineford1939)
 summary(fit, fit.measures = TRUE)
 coef1 <- broom::tidy(coef(fit))
-head(coef1)
+coef1
 
 # Specifying equality -- x3, x8, and x9 all the same
 CFA.mod <- ' 
@@ -83,8 +88,6 @@ CFA.mod <- '
 '
 fit <- cfa(CFA.mod, data = HolzingerSwineford1939)
 summary(fit, fit.measures = TRUE)
-coef1 <- broom::tidy(coef(fit))
-head(coef1)
 
 # Setting constraints
 set.seed(1234)
@@ -98,7 +101,7 @@ new.mod <- ' y ~ b1*x1 + b2*x2 + b3*x3    # model
             b1 == (b2 + b3)^2             # constraints
             b1 > exp(b2 + b3) '
 fit <- sem(new.mod, data=mydata)
-coef(fit)
+summary(fit)
 
 # Bringing in the means
 
@@ -126,7 +129,6 @@ fit <- cfa(Group.mod,
            data = HolzingerSwineford1939,
            group = "school")
 summary(fit)
-head(broom::tidy(coef(fit)))
 
 # What if we want constraints for a large number of parameters to be equal across groups?
 # Use 'group.equal' argument within fit function
@@ -182,9 +184,105 @@ model <- '
 fit <- growth(model, data = Demo.growth)
 summary(fit)
 
-# left off on page 28
-# library(semPlot)
-# semPath(fit, layout = L, rotation = 3, exoVar = FALSE)
+semPaths(fit, rotation = 3, exoVar = FALSE)
 ```
+
+## Categorical variables
+```{r}
+# exogenous ~ independent, endogenous ~ dependent
+# if exogenous categorical variable, treat as normal regression (e.g., dummy code)
+# if endogenous categorical variable, need to either (1) delcare variables "ordered" or (2) specifiy as order within the fit function. e.g.:
+
+#where items 1-4 are your binary/ordered variables 
+# fit <- cfa(myModel, data = myData,
+#            ordered=c("item1","item2",
+#                      "item3","item3")) 
+```
+
+## Using covariance matrix as input
+```{r}
+lower <- '
+ 11.834
+  6.947   9.364
+  6.819   5.091  12.532
+  4.783   5.028   7.495   9.986
+ -3.839  -3.889  -3.841  -3.625  9.610
+-21.899 -18.831 -21.748 -18.775 35.522 450.288 '
+
+wheaton.cov <-
+    getCov(lower, names = c("anomia67", "powerless67",
+                            "anomia71", "powerless71",
+                            "education", "sei"))
+
+wheaton.cov
+
+wheaton.model <- '
+                                            #latent variables
+    ses     =~ education + sei              
+    alien67 =~ anomia67 + powerless67
+    alien71 =~ anomia71 + powerless71
+                                            #regressions
+    alien71 ~ alien67 + ses
+    alien67 ~ ses
+                                            #correlated residuals
+    anomia67 ~~ anomia71
+    powerless67 ~~ powerless71
+'
+fit <- sem(wheaton.model,
+           sample.cov = wheaton.cov,
+           sample.nobs = 932)               #need to specify number of observations
+summary(fit, standardized = TRUE)
+semPaths(fit)
+```
+
+## Estimators, standard errors, and missing values
+```{r}
+# Estimators: ML (default), GLS, WLS, DWLS, ULS
+# ML estimation -- default is biased (n); if you want unbiased (n-1), use argument likelihood = "wishart"
+
+fit <- cfa(CFA.mod,
+           data = HolzingerSwineford1939,
+           likelihood = "wishart")
+summary(fit)
+
+# Page 32 of tutorial: information about missing values, standard errors, and bootstrapping in Lavaan
+```
+
+## Indirect effects & mediation
+```{r}
+#create fake dataset on which to conduct mediation analysis
+set.seed(1234)
+X <- rnorm(100)
+M <- 0.5*X + rnorm(100)
+Y <- 0.7*M + rnorm(100)
+Data <- data.frame(X = X, Y = Y, M = M)
+
+model <- ' # direct effect
+             Y ~ c*X
+           # mediator
+             M ~ a*X
+             Y ~ b*M
+           # indirect effect (a*b)
+             ab := a*b
+           # total effect
+             total := c + (a*b)
+         '
+fit <- sem(model, data = Data)
+summary(fit)
+semPaths(fit, layout = "tree2", rotation = 2)
+
+# The example illustrates the use of the ":=" operator in the lavaan model syntax. This operator ‘defines’ new parameters which take on values that are an arbitrary function of the original model parameters. The function, however, must be specified in terms of the parameter labels that are explicitly mentioned in the model syntax.
+```
+
+## Modification indices
+```{r}
+#TBC...
+```
+
+## Extracting information from a fitted model
+```{r}
+#TBC...
+```
+
 
 
