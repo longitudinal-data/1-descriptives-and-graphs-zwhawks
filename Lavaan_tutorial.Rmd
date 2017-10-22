@@ -112,7 +112,7 @@ summary(fit)
 ```
 
 ## Multiple groups
-```{r, warning = FALSE}
+```{r, warning = FALSE, message = FALSE}
 # add 'group' argument within fit formula --> able to estimate different fits for different groups
 fit <- cfa(CFA.mod,
            data = HolzingerSwineford1939,
@@ -202,12 +202,12 @@ semPaths(fit, rotation = 3, exoVar = FALSE)
 ## Using covariance matrix as input
 ```{r}
 lower <- '
- 11.834
+  11.834
   6.947   9.364
   6.819   5.091  12.532
   4.783   5.028   7.495   9.986
  -3.839  -3.889  -3.841  -3.625  9.610
--21.899 -18.831 -21.748 -18.775 35.522 450.288 '
+ -21.899 -18.831 -21.748 -18.775 35.522 450.288 '
 
 wheaton.cov <-
     getCov(lower, names = c("anomia67", "powerless67",
@@ -276,12 +276,38 @@ semPaths(fit, layout = "tree2", rotation = 2)
 
 ## Modification indices
 ```{r}
-#TBC...
+#Large modification index ~ most likely to improve (or simply change?) fit of model
+
+#Method 1
+fit <- cfa(CFA.mod,
+           data = HolzingerSwineford1939)
+summary(fit, modindices = TRUE)
+
+#Method 2
+fit <- cfa(CFA.mod,
+           data = HolzingerSwineford1939)
+mi <- modindices(fit)
+as_tibble(mi[mi$op == "=~",]) #filtering such that we only pull factor loadings
+as_tibble(mi[mi$op != "=~",]) #if we wanted everything except factor loadings
 ```
 
 ## Extracting information from a fitted model
 ```{r}
-#TBC...
+#Summary function is for viewing, extractor function is for pulling & utilizing information
+CFA.mod <- '
+            visual  =~ x1 + x2 + x3
+            textual =~ x4 + x5 + x6
+            speed   =~ x7 + start(.5)*x8 + x9
+'
+
+fit <- cfa(CFA.mod, data=HolzingerSwineford1939)
+as_tibble(parameterEstimates(fit))
+as_tibble(standardizedSolution(fit))
+fitted.values(fit)
+residuals(fit, type = "standardized")
+fitMeasures(fit, c("npar", "cfi"))
+inspect(fit, what = "start")
+head(inspect(fit, what = "list"))
 ```
 
 
