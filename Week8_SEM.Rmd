@@ -349,16 +349,149 @@ anova(fit.long, fit.auto) #simpler model (fit.long) is preferred
 ```
 
 
-## 4. Fit a longitdinal growth model in SEM and in HLM. Compare and contrast the differences.
+## 4. Fit a longitdinal growth model in SEM and in HLM. Compare and contrast the differences.  
 
-## 5. Constrain the residual variances to be equal. Does this change the fit of your model?
+Estimates of *intercept* are similar (1) between fixed slope SEM & HLM models, (2) between random slope SEM & HLM models, and (3) between fixed-slope + covariate SEM & HLM models. Estimates of *slope* are similar (1) between fixed slope SEM & HLM models and (2) between random slope SEM & HLM models. Esimates of slope differ between SEM & HLM models when a covariate is added because the HLM slope can no longer be interpreted as the straight-forward rate of increase (y over x) between timepoints. As well, logLikelihood tests designated the fixed slope + covariate model as the preferred model regardless of whether SEM or HLM was used.
+```{r, warning = FALSE, message = FALSE}
+#HLM model
+library(lme4)
+library(car)
+mod.HLM <- lmer(Sem_TotalCorrect ~ Timepoint + (1 | ID2), data = mydata) #fixed slope
+summary(mod.HLM) #intercept = 31.06, slope = 3.85
+car::Anova(mod.HLM)
 
-## 6. Contrain your slope to be fixed, not random. How does this change your model?
+mod.HLM2 <- lmer(Sem_TotalCorrect ~ Timepoint + (Timepoint | ID2), data = mydata) #random slope
+summary(mod.HLM2) #intercept = 31.07, slope = 3.84
+car::Anova(mod.HLM2)
 
-## 7. Change the time metric in your SEM growth model. How does that change your estimates? Does it change your fit statistics?
+mod.HLM3 <- lmer(Sem_TotalCorrect ~ Timepoint + Age_at_time_of_testing + (1 | ID2),
+                 data = mydata) #fixed slope, with covariate
+summary(mod.HLM3) #intercept = 14.83, est. timepoint = 1.83, est. age = 1.55
+car::Anova(mod.HLM3)
 
-## 8. Try a different type of estimation (see lavaan tutorial for details). How does that change your model?
+anova(mod.HLM, mod.HLM2, mod.HLM3) #fixed slope, covariate model is preferred
+
+#Growth model
+mod.SEM <- ' intercept =~ 1*Sem_TotalCorrect_1 + 1*Sem_TotalCorrect_2 + 1*Sem_TotalCorrect_3
+             slope =~ 0*Sem_TotalCorrect_1 + 1*Sem_TotalCorrect_2 + 2*Sem_TotalCorrect_3
+             slope ~~ 0*slope ' #fixed slope, no variance
+
+mod.SEM.fixed <- growth(mod.SEM, missing = "ML", data = mydata_wide)
+summary(mod.SEM.fixed) #intercept = 34.93, slope = 3.85
+semPaths(mod.SEM.fixed)
+semPaths(mod.SEM.fixed, what = "std")
+
+mod.SEM2 <- ' intercept =~ 1*Sem_TotalCorrect_1 + 1*Sem_TotalCorrect_2 + 1*Sem_TotalCorrect_3
+              slope =~ 0*Sem_TotalCorrect_1 + 1*Sem_TotalCorrect_2 + 2*Sem_TotalCorrect_3 ' #random slope model
+
+mod.SEM.random <- growth(mod.SEM2, missing = "ML", data = mydata_wide)
+summary(mod.SEM.random) #intercept = 34.93, slope = 3.85
+semPaths(mod.SEM.random)
+semPaths(mod.SEM.random, what = "std")
+
+mod.SEM3 <- ' intercept =~ 1*Sem_TotalCorrect_1 + 1*Sem_TotalCorrect_2 + 1*Sem_TotalCorrect_3
+              slope =~ 0*Sem_TotalCorrect_1 + 1*Sem_TotalCorrect_2 + 2*Sem_TotalCorrect_3
+              slope ~~ 0*slope
+
+              Sem_TotalCorrect_1 ~ Age_at_time_of_testing_1
+              Sem_TotalCorrect_2 ~ Age_at_time_of_testing_2
+              Sem_TotalCorrect_3 ~ Age_at_time_of_testing_3 ' #fixed slope, with covariate
+
+mod.SEM.cov <- growth(mod.SEM3, missing = "ML", data = mydata_wide)
+summary(mod.SEM.cov) #intercept = 12.38, slope = 6.65
+semPaths(mod.SEM.cov)
+semPaths(mod.SEM.cov, what = "std")
+
+anova(mod.SEM.fixed, mod.SEM.random, mod.SEM.cov) #fixed slope, covariate model is preferred
+```
+
+## 5. Constrain the residual variances to be equal. Does this change the fit of your model?  
+
+Constraining the residual variances does not significantly change model fit. LogLikelihood tests indicate that a simpler model, where residual variances are allowed to vary, is preferred to a more complex model where they are constrained to be equal.
+```{r}
+mod.SEM4 <- ' intercept =~ 1*Sem_TotalCorrect_1 + 1*Sem_TotalCorrect_2 + 1*Sem_TotalCorrect_3
+              slope =~ 0*Sem_TotalCorrect_1 + 1*Sem_TotalCorrect_2 + 2*Sem_TotalCorrect_3
+              
+              Sem_TotalCorrect_1 ~ Age_at_time_of_testing_1
+              Sem_TotalCorrect_2 ~ Age_at_time_of_testing_2
+              Sem_TotalCorrect_3 ~ Age_at_time_of_testing_3
+
+              Sem_TotalCorrect_1 ~~ a*Sem_TotalCorrect_1
+              Sem_TotalCorrect_2 ~~ a*Sem_TotalCorrect_2
+              Sem_TotalCorrect_3 ~~ a*Sem_TotalCorrect_3 ' #random slope, with covariate, residual variances are equal
+
+mod.SEM.cov2 <- growth(mod.SEM4, missing = "ML", data = mydata_wide)
+summary(mod.SEM.cov2) #intercept = 12.53, slope = 6.23
+semPaths(mod.SEM.cov2)
+semPaths(mod.SEM.cov2, what = "std")
+
+anova(mod.SEM.cov, mod.SEM.cov2) #simpler model (mod.SEM.cov) is preferred
+```
+
+## 6. Contrain your slope to be fixed, not random. How does this change your model?  
+
+Constraining slopes to be fixed does not sigificantly change my model (p = .97).
+```{r}
+anova(mod.SEM.fixed, mod.SEM.random) #see problem #4 for model specifics
+```
+
+## 7. Change the time metric in your SEM growth model. How does that change your estimates? Does it change your fit statistics?  
+
+I changed my time metric such that the intercept was centered at TP 3 rather than TP1. This increased the intercept (which makes sense, given age-related change) but did not change model fit.  
+  
+I also changed my time metric such that "duration" between TP3 & TP2 > "duration" between TP2 & TP1. This had little impact on the intercept, but decreased the slope and improved model fit.
+```{r, warning=FALSE, message = FALSE}
+# mydata_wide$time_1 <- 0
+# mydata_wide$time_2 <- as.numeric(mydata_wide$Age_at_time_of_testing_2) -
+#   as.numeric(mydata_wide$Age_at_time_of_testing_1) 
+# mydata_wide$time_3 <- as.numeric(mydata_wide$Age_at_time_of_testing_3) - 
+#   as.numeric(mydata_wide$Age_at_time_of_testing_1) 
+
+mod.SEM5 <- ' intercept =~ 1*Sem_TotalCorrect_1 + 1*Sem_TotalCorrect_2 + 1*Sem_TotalCorrect_3
+              slope =~ -2*Sem_TotalCorrect_1 + -1*Sem_TotalCorrect_2 + 0*Sem_TotalCorrect_3 '
+
+mod.SEM.time <- growth(mod.SEM5, missing = "ML", data = mydata_wide)
+summary(mod.SEM.time) 
+semPaths(mod.SEM.time)
+semPaths(mod.SEM.time, what = "std")
+
+anova(mod.SEM.random, mod.SEM.time)
+
+mod.SEM6 <- ' intercept =~ 1*Sem_TotalCorrect_1 + 1*Sem_TotalCorrect_2 + 1*Sem_TotalCorrect_3
+              slope =~ 0*Sem_TotalCorrect_1 + 1*Sem_TotalCorrect_2 + 6*Sem_TotalCorrect_3 '
+
+mod.SEM.time2 <- growth(mod.SEM6, missing = "ML", data = mydata_wide)
+summary(mod.SEM.time2) 
+semPaths(mod.SEM.time2)
+semPaths(mod.SEM.time2, what = "std")
+
+anova(mod.SEM.random, mod.SEM.time2)
+```
+
+## 8. Try a different type of estimation (see lavaan tutorial for details). How does that change your model?  
+
+Despite the fact that Pho_TotalCorrect is non-normal, changing the esimator has no effect on model fit, intercept, or slope.
+```{r}
+#What if we want to try to model non-normal data?
+hist(mydata$Pho_TotalCorrect)
+
+mod.SEM7 <- ' intercept =~ 1*Pho_TotalCorrect_1 + 1*Pho_TotalCorrect_2 + 1*Pho_TotalCorrect_3
+              slope =~ -2*Pho_TotalCorrect_1 + -1*Pho_TotalCorrect_2 + 0*Pho_TotalCorrect_3 '
+
+mod.SEM.MLM <- growth(mod.SEM7, estimator = "MLM", data = mydata_wide)
+mod.SEM.ML <- growth(mod.SEM7, estimator = "ML", data = mydata_wide)
+
+summary(mod.SEM.MLM) 
+semPaths(mod.SEM.MLM)
+semPaths(mod.SEM.MLM, what = "std")
+
+summary(mod.SEM.ML) 
+semPaths(mod.SEM.ML)
+semPaths(mod.SEM.ML, what = "std")
+
+anova(mod.SEM.MLM, mod.SEM.ML)
+```
 
 ## 9. Provide semplots for each of the models  
   
-See above
+Incorporated throughout code (above)
