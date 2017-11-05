@@ -281,6 +281,21 @@ mydata_wide$Food_Switches_1 <- as.numeric(mydata_wide$Food_Switches_1)
 mydata_wide$Animal_Switches_1 <- as.numeric(mydata_wide$Animal_Switches_1)
 mydata_wide$IQ_vocraw_1 <- as.numeric(mydata_wide$IQ_vocraw_1)
 mydata_wide$IQ_mrraw_1 <- as.numeric(mydata_wide$IQ_mrraw_1)
+
+mydata_wide$Animal_TW_Clusters_2 <- as.numeric(mydata_wide$Animal_TW_Clusters_2)
+mydata_wide$Food_TW_Clusters_2 <- as.numeric(mydata_wide$Food_TW_Clusters_2)
+mydata_wide$Food_Switches_2 <- as.numeric(mydata_wide$Food_Switches_2)
+mydata_wide$Animal_Switches_2 <- as.numeric(mydata_wide$Animal_Switches_2)
+mydata_wide$IQ_vocraw_2 <- as.numeric(mydata_wide$IQ_vocraw_2)
+mydata_wide$IQ_mrraw_2 <- as.numeric(mydata_wide$IQ_mrraw_2)
+
+mydata_wide$Animal_TW_Clusters_3 <- as.numeric(mydata_wide$Animal_TW_Clusters_3)
+mydata_wide$Food_TW_Clusters_3 <- as.numeric(mydata_wide$Food_TW_Clusters_3)
+mydata_wide$Food_Switches_3 <- as.numeric(mydata_wide$Food_Switches_3)
+mydata_wide$Animal_Switches_3 <- as.numeric(mydata_wide$Animal_Switches_3)
+mydata_wide$IQ_vocraw_3 <- as.numeric(mydata_wide$IQ_vocraw_3)
+mydata_wide$IQ_mrraw_3 <- as.numeric(mydata_wide$IQ_mrraw_3)
+
 mydata_wide$GROUP <- as.factor(mydata_wide$GROUP) 
 mydata_wide$Age_at_time_of_testing_1 <- as.numeric(mydata_wide$Age_at_time_of_testing_1) 
 #is this right to treat group as numeric? Summary doesn't provide AIC, BIC otherwise
@@ -289,20 +304,20 @@ mydata_wide$Age_at_time_of_testing_1 <- as.numeric(mydata_wide$Age_at_time_of_te
 ## 1. Fit a measurement model to your constructs at one time point. Try out the different types of scaling discussed in class. What changes what stays the same?  
   
 Measurement model was fit at timepoint 1. Under the marker method, parameter estimates were fixed at 1 for the first indicators (i.e., Animal_TW_Clusters_1 and Animal_Switches_1). Under the fixed factor method, in contrast, parameter estiamtes were fixed to 1 for the latent variables. In both cases, fit indices (e.g., logLikelihood, TLI, CFI, RMSEA) remain constant.   
-```{r Problem 1, warning = F, message = F}
+```{r Problem 1}
 T1.mod <- ' 
             Semantic =~ Animal_TW_Clusters_1 + Food_TW_Clusters_1 + IQ_vocraw_1
             Phonemic =~ Animal_Switches_1 + Food_Switches_1 + IQ_mrraw_1
 '
 
 #Marker method
-fit.marker <- cfa(T1.mod, data=mydata_wide)
+fit.marker <- cfa(T1.mod, data=mydata_wide, missing = "ML")
 summary(fit.marker, fit.measures = TRUE)
 semPaths(fit.marker, layout = "tree", whatLabels = "est")
 semPaths(fit.marker, layout = "tree", what = "std")
 
 #Fixed factor method
-fit.fixed <- cfa(T1.mod, data=mydata_wide, std.lv = T)
+fit.fixed <- cfa(T1.mod, data=mydata_wide, std.lv = T, missing = "ML")
 summary(fit.fixed, fit.measures = TRUE)
 semPaths(fit.fixed, layout = "tree", whatLabels = "est")
 semPaths(fit.fixed, layout = "tree", what = "std")
@@ -310,40 +325,61 @@ semPaths(fit.fixed, layout = "tree", what = "std")
 
 ## 2. What do the fit statistics say about your latent variable? Good/bad? Is your latent variable Just identified/saturdated, under identified or over identified?  
   
-* RMSEA = .165, SRMR = .091, TLI = .722, CFI = .852  
+* RMSEA = .165, SRMR = .081, TLI = .722, CFI = .852  
 * RMSEA & SRMR > .08 and TLI & CFI < .90, suggesting poor fit -- that is, the latent variables are not effectively capturing commonalities among their indicator variables. This could be due to (1) high measurment error or (2) highly disparate indicators  
 * This model is over identified, as evidenced by the positive degrees of freedom (15).  
 
 ## 3. Fit a longitudinal CFA model where you a) first correlate your latent factors across time and then b) a second model that predicts later times by a prevous time (ie auto regressive; t1 -> t2 -> t3). What are your conclusions? How does one differ from the other?  
   
-For the longitudinal CFA model with correlated latent fators (Long.mod), I conclude that my latent factors are strongly correlated across time. Moreover, across all three timepoints, IQ verbal loads much more strongly onto the latent factors than Animal and Food total word counts, suggesting that IQ verbal may parsimonously account for shared variance among indicators.  
+For the longitudinal CFA model with correlated latent fators (Long.mod), I conclude that my latent factors are strongly correlated across time. Moreover, across all three timepoints, indicators load strongly & significantly onto their respective latent constructs.  
 
-For the autoregressive CFA model (auto.mod), a similar picture emerges, suggesting that Semantic_1 is highly predictive of Semantic_2, which is highly predictive of Semantic_3. Of note, standardized variances for S_2 and S_3 latent factors are reduced for the autoregressive model compared to the correlated model (see path diagrams), likely due to the fact that S_2 and S_3 variances are accounted for by earlier timepoints. 
-```{r, warning = F, message = F}
+For the autoregressive CFA model (auto.mod), a similar picture emerges, suggesting that Semantic_1 is highly predictive of Semantic_2, which is highly predictive of Semantic_3. Of note, standardized variances for S_2 and S_3 are insignificant (p = .10 and .62, respectively), likely due to the fact that their variability is accounted for by earlier timepoints. Likelihood ratio tests designate the longitudinal CFA model as the preferred model.  
+```{r}
 Long.mod <- ' 
             Semantic_1 =~ Animal_TW_Clusters_1 + Food_TW_Clusters_1 + IQ_vocraw_1
             Semantic_2 =~ Animal_TW_Clusters_2 + Food_TW_Clusters_2 + IQ_vocraw_2
             Semantic_3 =~ Animal_TW_Clusters_3 + Food_TW_Clusters_3 + IQ_vocraw_3
+
+            ##correlated residuals across time
+            Animal_TW_Clusters_1 ~~ Animal_TW_Clusters_2 + Animal_TW_Clusters_3
+            Animal_TW_Clusters_2 ~~ Animal_TW_Clusters_3
+            Food_TW_Clusters_1 ~~ Food_TW_Clusters_2 + Food_TW_Clusters_3
+            Food_TW_Clusters_2 ~~ Food_TW_Clusters_3
+            IQ_vocraw_1 ~~ IQ_vocraw_2 + IQ_vocraw_3
+            IQ_vocraw_2 ~~ IQ_vocraw_3
 '
 
-fit.long <- cfa(Long.mod, data=mydata_wide, std.lv = T)
-summary(fit.long)
+fit.long <- cfa(Long.mod, data=mydata_wide, std.lv = T, missing = "ML")
+summary(fit.long, fit.measures = T)
 semPaths(fit.long, whatLabels = "std")
 semPaths(fit.long, what = "std")
 
 Auto.mod <- ' 
-            Semantic_1 =~ Animal_TW_Clusters_1 + Food_TW_Clusters_1 + IQ_vocraw_1
-            Semantic_2 =~ Animal_TW_Clusters_2 + Food_TW_Clusters_2 + IQ_vocraw_2
-            Semantic_3 =~ Animal_TW_Clusters_3 + Food_TW_Clusters_3 + IQ_vocraw_3
+            Semantic_1 =~ L1*Animal_TW_Clusters_1 + L2*Food_TW_Clusters_1 + L3*IQ_vocraw_1
+            Semantic_2 =~ L1*Animal_TW_Clusters_2 + L2*Food_TW_Clusters_2 + L3*IQ_vocraw_2
+            Semantic_3 =~ L1*Animal_TW_Clusters_3 + L2*Food_TW_Clusters_3 + L3*IQ_vocraw_3
 
+            ##correlated residuals across time
+            Animal_TW_Clusters_1 ~~ Animal_TW_Clusters_2 + Animal_TW_Clusters_3
+            Animal_TW_Clusters_2 ~~ Animal_TW_Clusters_3
+            Food_TW_Clusters_1 ~~ Food_TW_Clusters_2 + Food_TW_Clusters_3
+            Food_TW_Clusters_2 ~~ Food_TW_Clusters_3
+            IQ_vocraw_1 ~~ IQ_vocraw_2 + IQ_vocraw_3
+            IQ_vocraw_2 ~~ IQ_vocraw_3
+
+            ##directional regression paths
             Semantic_3 ~ Semantic_2
             Semantic_2 ~ Semantic_1
+
+            ## free latent variances at later times (only set the scale once)
+            Semantic_2 ~~ NA*Semantic_2
+            Semantic_3 ~~ NA*Semantic_3
 '
 
-fit.auto <- cfa(Auto.mod, data=mydata_wide, std.lv = T)
-summary(fit.auto)
-semPaths(fit.auto, layout = "circle2", whatLabels = "std")
-semPaths(fit.auto, layout = "circle2", what = "std")
+fit.auto <- sem(Auto.mod, data=mydata_wide, std.lv = T, missing = "ML")
+summary(fit.auto, fit.measures = T)
+semPaths(fit.auto, layout = "tree", whatLabels = "std")
+semPaths(fit.auto, layout = "tree", what = "std")
 
 anova(fit.long, fit.auto) #simpler model (fit.long) is preferred 
 ```
