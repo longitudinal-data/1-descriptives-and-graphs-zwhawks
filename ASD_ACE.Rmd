@@ -1,0 +1,163 @@
+---
+title: "ASD_ACE"
+author: "Zoë Hawks"
+date: "11/9/2017"
+output: pdf_document
+---
+
+##Setting up dataframe
+```{r, warning = FALSE, message = FALSE}
+library(lavaan)
+library(semPlot)
+library(tidyverse)
+library(dplyr)
+library(forcats)
+
+setwd("/Users/zashawks/Desktop/Stats/Longitudinal/ALDA")
+mydata <- read.csv("ASD_master_data_stats.csv", header=TRUE)  
+
+mydata_wide <- mydata %>% 
+  select(famid, Random_twin_assignment, zy_final_all, sci, rrb, rrb_30_36, sci_30_36) %>%
+  rename("sci36" = "sci_30_36", "rrb36" = "rrb_30_36") %>%
+  filter(!is.na(Random_twin_assignment), zy_final_all == 1 | zy_final_all == 2 | zy_final_all == 5) %>%
+  mutate(zy_final_all = ifelse((zy_final_all == 5 | zy_final_all == 2), 2, 1)) %>%
+  mutate_at(c("zy_final_all"), funs(as.factor(.))) %>%
+  mutate(zy_final_all = factor(zy_final_all, labels = c("MZ", "DZ"))) %>%
+  mutate_at(c("sci", "rrb", "rrb36", "sci36"), funs(as.numeric(.))) %>%
+  gather(-(famid:zy_final_all), key = "variable", value = "value") %>%
+  unite(varT, variable, Random_twin_assignment) %>%
+  spread(key = varT, value = value)
+```
+
+##Hypotheses  
+
+Given previous evidence in children indicating that autistic traits are highly heritable, we predict heritability on the order of roughly 80-90% for our social communicative factor (SCI). However, it is unclear (1) whether genetic effects will be this large in infancy and (2) how this effect may change over the course of early development (i.e., 18 to 36 months).  
+  
+Some background on biometric models:  
+* A = additive effects stemming from shared genetic material (MZ share 100%, DZ share 50%)  
+* D = non-additive effects (e.g., dominance effects; MZ = share both alleles at 100% of loci, DZ = share both alleles at *25%* of loci)  
+* C = shared environmental effects (e.g., prenatal, shared home)  
+* E = non-shared environment (e.g., different peer groups, attending different schools)  
+* Common to test different models based on hypotheses about genetic and environmental structure of construct -- ACE, ADE, CE, AE  
+
+##Descriptives
+```{r}
+#TBC...
+```
+
+##RRB @ 18 months  
+```{r, warning = FALSE, message = F}
+#ACE model
+ACE_18 <-'
+
+# build the factor model with group constraints
+# E is residual -- non-shared environment so do not need to model
+# Want indicators (1) free to vary but (2) constrained to be equivalent
+
+  A1=~ NA*rrb_0 + c(a,a)*rrb_0
+  A2=~ NA*rrb_1 + c(a,a)*rrb_1 
+  C =~ NA*rrb_0 + NA*rrb_1 + c(c,c)*rrb_0 + c(c,c)*rrb_1
+
+# constrain the factor variances (fixed factor method)
+
+  A1 ~~ 1*A1
+  A2 ~~ 1*A2
+  C ~~ 1*C
+  rrb_0~~c(e,e)*rrb_0
+  rrb_1~~c(e,e)*rrb_1
+
+# constrain the factor covariances 
+# this is where we account for differences in shared genetic background between MZ & DZ twins
+
+  A1 ~~ c(1,.5)*A2
+  C ~~ 0*A1 + 0*A2
+'
+ACE_18.fit <- cfa(ACE_18, data = mydata_wide, missing = "ML", group = "zy_final_all")
+semPaths(ACE_18.fit)
+semPaths(ACE_18.fit, what = "std")
+
+#ADE model
+
+#CE model
+
+#AE model
+
+#Model comparisons
+
+##Summarizing fit for preferred model
+summary(ACE_18.fit)
+fitMeasures(ACE_18.fit, c("tli", "cfi", "rmsea", "srmr", "chisq"))
+
+#Calculating heritability for preferred model
+estA <- as_tibble(parameterEstimates(ACE_18.fit)) %>% 
+  filter(label == "a") %>% 
+  select(est)
+estC <- as_tibble(parameterEstimates(ACE_18.fit)) %>% 
+  filter(label == "c") %>% 
+  select(est)
+estE <- as_tibble(parameterEstimates(ACE_18.fit)) %>% 
+  filter(label == "e") %>% 
+  select(est)
+heritability_rrb_18 <- print(estA[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
+```
+
+##RRB @ 36 months  
+```{r, warning = FALSE, message = F}
+#ACE model
+ACE_36 <-'
+
+# build the factor model with group constraints
+# E is residual -- non-shared environment so do not need to model
+# Want indicators (1) free to vary but (2) constrained to be equivalent
+
+  A1=~ NA*rrb36_0 + c(a,a)*rrb36_0
+  A2=~ NA*rrb36_1 + c(a,a)*rrb36_1 
+  C =~ NA*rrb36_0 + NA*rrb36_1 + c(c,c)*rrb36_0 + c(c,c)*rrb36_1
+
+# constrain the factor variances (fixed factor method)
+
+  A1 ~~ 1*A1
+  A2 ~~ 1*A2
+  C ~~ 1*C
+  rrb36_0~~c(e,e)*rrb36_0
+  rrb36_1~~c(e,e)*rrb36_1
+
+# constrain the factor covariances 
+# this is where we account for differences in shared genetic background between MZ & DZ twins
+
+  A1 ~~ c(1,.5)*A2
+  C ~~ 0*A1 + 0*A2
+'
+ACE_36.fit <- cfa(ACE_36, data = mydata_wide, missing = "ML", group = "zy_final_all")
+semPaths(ACE_36.fit)
+semPaths(ACE_36.fit, what = "std")
+
+#ADE model
+
+#CE model
+
+#AE model
+
+#Model comparisons
+
+##Summarizing fit for preferred model
+summary(ACE_36.fit)
+fitMeasures(ACE_36.fit, c("tli", "cfi", "rmsea", "srmr", "chisq"))
+
+#Calculating heritability for preferred model
+estA <- as_tibble(parameterEstimates(ACE_36.fit)) %>% 
+  filter(label == "a") %>% 
+  select(est)
+estC <- as_tibble(parameterEstimates(ACE_36.fit)) %>% 
+  filter(label == "c") %>% 
+  select(est)
+estE <- as_tibble(parameterEstimates(ACE_36.fit)) %>% 
+  filter(label == "e") %>% 
+  select(est)
+heritability_rrb36_36 <- print(estA[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
+```
+
+
+
+
+
