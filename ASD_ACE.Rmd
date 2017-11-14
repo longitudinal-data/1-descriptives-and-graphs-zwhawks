@@ -254,6 +254,8 @@ estE <- as_tibble(parameterEstimates(ACE_18.fit)) %>%
 heritability_rrb_18 <- print(estA[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
 commonenviron_rrb_18 <- print(estC[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
 environ_rrb_18 <- print(estE[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
+
+RRB_ACE_18.fit <- ACE_18.fit
 ```
 
 * Fit measures: TLI = 1.006, CFI = 1.000, RMSEA = 0.000, SRMR = .080
@@ -403,6 +405,8 @@ estE <- as_tibble(parameterEstimates(ACE_36.fit)) %>%
 heritability_rrb36_36 <- print(estA[1,1]/(estA[1,1] + estE[1,1]))
 commonenviron_rrb_36 <- print(estC[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
 environ_rrb_36 <- print(estE[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
+
+RRB_ACE_36.fit <- ACE_36.fit
 ```
 
 * Fit measures: TLI = -0.122, CFI = 0.000, RMSEA = 0.485, SRMR = 1.032
@@ -552,6 +556,8 @@ estE <- as_tibble(parameterEstimates(ACE_18.fit)) %>%
 heritability_sci_18 <- print(estA[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
 commonenviron_sci_18 <- print(estC[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
 environ_sci_18 <- print(estE[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
+
+SCI_ACE_18.fit <- ACE_18.fit
 ```
 
 * Fit measures: TLI = 0.899, CFI = .848, RMSEA = 0.266, SRMR = .212
@@ -700,6 +706,8 @@ estE <- as_tibble(parameterEstimates(ACE_36.fit)) %>%
 heritability_sci36_36 <- print(estA[1,1]/(estA[1,1] + estE[1,1]))
 commonenviron_sci_36 <- print(estC[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
 environ_sci_36 <- print(estE[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
+
+SCI_ACE_36.fit <- ACE_36.fit
 ```
 
 * Fit measures: TLI = .579, CFI = 0.368, RMSEA = 0.387, SRMR = .579
@@ -709,5 +717,56 @@ environ_sci_36 <- print(estE[1,1]/(estA[1,1] + estC[1,1] + estE[1,1]))
 * As with RRB, heritability appears to increase during early development.
 * Heritability of SCI appears reduced relative to heritability of RRB.
 
+##Longitudinal biometric model for RRB  
 
+*Ran Cholesky model rather than latent growth curve model because scale used to assess SCI and RRB at 18 months (vrRSB) differs from scale used to assess these constructs at 36 months (SRS-2)*
+```{r}
+
+ACE_long <- '
+
+# Constructing model at 18 months & specifying paths between models
+
+  A1_1 =~ NA*rrb_0 + c(a1,a1)*rrb_0 + NA*rrb36_0
+  A2_1 =~ NA*rrb_1 + c(a1,a1)*rrb_1 + NA*rrb36_1
+  C_1 =~ NA*rrb_0 + NA*rrb_1 + c(c1,c1)*rrb_0 + c(c1,c1)*rrb_1 + NA*rrb36_0 + NA*rrb36_1
+
+  A1_1 ~~ 1*A1_1
+  A2_1 ~~ 1*A2_1
+  C_1 ~~ 1*C_1
+  rrb_0~~c(e1,e1)*rrb_0
+  rrb_1~~c(e1,e1)*rrb_1
+
+  A1_1 ~~ c(1,.5)*A2_1
+  C_1 ~~ 0*A1_1 + 0*A2_1
+
+# Constructing model at 36 months and specifying longitudinal relationships between latent constructs
+# Constrain long. associations so that value is the same for twin 1 and twin 2
+
+  A1_2 =~ NA*rrb36_0 + c(a2,a2)*rrb36_0 
+  A2_2 =~ NA*rrb36_1 + c(a2,a2)*rrb36_1 
+  C_2 =~ NA*rrb36_0 + NA*rrb36_1 + c(c2,c2)*rrb36_0 + c(c2,c2)*rrb36_1
+
+  A1_2 ~~ 1*A1_2 
+  A2_2 ~~ 1*A2_2 
+  C_2 ~~ 1*C_2 
+  rrb36_0 ~~c(e2,e2)*rrb36_0
+  rrb36_1 ~~c(e2,e2)*rrb36_1
+
+  A1_2 ~~ c(1,.5)*A2_2 
+  C_2 ~~ 0*A1_2 + 0*A2_2 
+
+# Specifying longitudinal relationships between latent constructs
+
+  A1_2 ~~ NA*A1_1 + 0*A2_1 + 0*C_1
+  A2_2 ~~ NA*A2_1 + 0*A1_1 + 0*C_1
+  C_2 ~~ NA*C_1 + 0*A1_1 + 0*A2_1
+'
+
+ACE_long.fit <- cfa(ACE_long, data = mydata_wide, missing = "ML", group = "zy_final_all")
+summary(ACE_long.fit)
+semPaths(ACE_long.fit)
+
+#Model didn't converge -- "covariance is not positive definite"
+inspect(ACE_long.fit, "cov.lv")
+```
 
