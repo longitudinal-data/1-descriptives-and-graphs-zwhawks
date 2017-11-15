@@ -757,9 +757,9 @@ ACE_long <- '
 
 # Specifying longitudinal relationships between latent constructs
 
-  A1_2 ~~ NA*A1_1 + 0*A2_1 + 0*C_1
-  A2_2 ~~ NA*A2_1 + 0*A1_1 + 0*C_1
-  C_2 ~~ NA*C_1 + 0*A1_1 + 0*A2_1
+  A1_2 ~~ c(x,x)*A1_1 + 0*A2_1 + 0*C_1
+  A2_2 ~~ c(x,x)*A2_1 + 0*A1_1 + 0*C_1
+  C_2 ~~ c(y,y)*C_1 + 0*A1_1 + 0*A2_1
 '
 
 ACE_long.fit <- cfa(ACE_long, data = mydata_wide, missing = "ML", group = "zy_final_all")
@@ -768,5 +768,152 @@ semPaths(ACE_long.fit)
 
 #Model didn't converge -- "covariance is not positive definite"
 inspect(ACE_long.fit, "cov.lv")
+inspect(ACE_long.fit, "cor.lv")
+
+#Correlation between C_1 & C_2 = 3.238 & variance for .rrb36_0 and .rrb36_1 < 0.
+#Tried constraining C_1 & C_2 to 0 --> model failed to converge
+#Tried constraining .rrb36_0 and .rrb36_1 to 0 --> initial model-implied matrix (Sigma) is not positive definite
+#Possibly due to the fact that the additive genetic component is so high across time. Let's try an AE model.
+
+AE_long <- '
+
+# Constructing model at 18 months & specifying paths between models
+
+  A1_1 =~ NA*rrb_0 + c(a1,a1)*rrb_0 + NA*rrb36_0
+  A2_1 =~ NA*rrb_1 + c(a1,a1)*rrb_1 + NA*rrb36_1
+
+  A1_1 ~~ 1*A1_1
+  A2_1 ~~ 1*A2_1
+  rrb_0~~c(e1,e1)*rrb_0
+  rrb_1~~c(e1,e1)*rrb_1
+
+  A1_1 ~~ c(1,.5)*A2_1
+
+# Constructing model at 36 months and specifying longitudinal relationships between latent constructs
+# Constrain long. associations so that value is the same for twin 1 and twin 2
+
+  A1_2 =~ NA*rrb36_0 + c(a2,a2)*rrb36_0 
+  A2_2 =~ NA*rrb36_1 + c(a2,a2)*rrb36_1 
+
+  A1_2 ~~ 1*A1_2 
+  A2_2 ~~ 1*A2_2 
+  rrb36_0 ~~c(e2,e2)*rrb36_0
+  rrb36_1 ~~c(e2,e2)*rrb36_1
+
+  A1_2 ~~ c(1,.5)*A2_2 
+
+# Specifying longitudinal relationships between latent constructs
+
+  A1_2 ~~ c(x,x)*A1_1 + 0*A2_1 
+  A2_2 ~~ c(x,x)*A2_1 + 0*A1_1 
+'
+
+AE_long.fit <- cfa(AE_long, data = mydata_wide, missing = "ML", group = "zy_final_all")
+summary(AE_long.fit)
+semPaths(AE_long.fit)
+
+#Once again, model didn't converge -- "covariance is not positive definite"
+#No negative correlations or correlations > 1 -- not sure why we're getting this error message
+inspect(AE_long.fit, "cov.lv")
+inspect(AE_long.fit, "cor.lv")
 ```
 
+##Let's try for SCI
+```{r}
+
+ACE_long <- '
+
+# Constructing model at 18 months & specifying paths between models
+
+  A1_1 =~ NA*sci_0 + c(a1,a1)*sci_0 + NA*sci36_0
+  A2_1 =~ NA*sci_1 + c(a1,a1)*sci_1 + NA*sci36_1
+  C_1 =~ NA*sci_0 + NA*sci_1 + c(c1,c1)*sci_0 + c(c1,c1)*sci_1 + NA*sci36_0 + NA*sci36_1
+
+  A1_1 ~~ 1*A1_1
+  A2_1 ~~ 1*A2_1
+  C_1 ~~ 1*C_1
+  sci_0~~c(e1,e1)*sci_0
+  sci_1~~c(e1,e1)*sci_1
+
+  A1_1 ~~ c(1,.5)*A2_1
+  C_1 ~~ 0*A1_1 + 0*A2_1
+
+# Constructing model at 36 months and specifying longitudinal relationships between latent constructs
+# Constrain long. associations so that value is the same for twin 1 and twin 2
+
+  A1_2 =~ NA*sci36_0 + c(a2,a2)*sci36_0 
+  A2_2 =~ NA*sci36_1 + c(a2,a2)*sci36_1 
+  C_2 =~ NA*sci36_0 + NA*sci36_1 + c(c2,c2)*sci36_0 + c(c2,c2)*sci36_1
+
+  A1_2 ~~ 1*A1_2 
+  A2_2 ~~ 1*A2_2 
+  C_2 ~~ 1*C_2 
+  sci36_0 ~~c(e2,e2)*sci36_0
+  sci36_1 ~~c(e2,e2)*sci36_1
+
+  A1_2 ~~ c(1,.5)*A2_2 
+  C_2 ~~ 0*A1_2 + 0*A2_2 
+
+# Specifying longitudinal relationships between latent constructs
+
+  A1_2 ~~ c(x,x)*A1_1 + 0*A2_1 + 0*C_1
+  A2_2 ~~ c(x,x)*A2_1 + 0*A1_1 + 0*C_1
+  C_2 ~~ c(y,y)*C_1 + 0*A1_1 + 0*A2_1
+'
+
+ACE_long.fit <- cfa(ACE_long, data = mydata_wide, missing = "ML", group = "zy_final_all")
+summary(ACE_long.fit)
+semPaths(ACE_long.fit)
+
+#Model didn't converge -- "covariance is not positive definite"
+inspect(ACE_long.fit, "cov.lv")
+inspect(ACE_long.fit, "cor.lv")
+
+#Correlation between C_1 & C_2 = 60.551
+#Tried constraining C_1 & C_2 to 0 --> "not positive definite" error persists 
+#Desite the fact that "inspect" fails to reveal negative correlations or correlations > 1...
+#As above, possibly due to the fact that the additive genetic component is so high. Let's try an AE model.
+
+AE_long <- '
+
+# Constructing model at 18 months & specifying paths between models
+
+  A1_1 =~ NA*sci_0 + c(a1,a1)*sci_0 + NA*sci36_0
+  A2_1 =~ NA*sci_1 + c(a1,a1)*sci_1 + NA*sci36_1
+
+  A1_1 ~~ 1*A1_1
+  A2_1 ~~ 1*A2_1
+  sci_0~~c(e1,e1)*sci_0
+  sci_1~~c(e1,e1)*sci_1
+
+  A1_1 ~~ c(1,.5)*A2_1
+
+# Constructing model at 36 months and specifying longitudinal relationships between latent constructs
+# Constrain long. associations so that value is the same for twin 1 and twin 2
+
+  A1_2 =~ NA*sci36_0 + c(a2,a2)*sci36_0 
+  A2_2 =~ NA*sci36_1 + c(a2,a2)*sci36_1 
+
+  A1_2 ~~ 1*A1_2 
+  A2_2 ~~ 1*A2_2 
+  sci36_0 ~~c(e2,e2)*sci36_0
+  sci36_1 ~~c(e2,e2)*sci36_1
+
+  A1_2 ~~ c(1,.5)*A2_2 
+
+# Specifying longitudinal relationships between latent constructs
+
+  A1_2 ~~ c(x,x)*A1_1 + 0*A2_1 
+  A2_2 ~~ c(x,x)*A2_1 + 0*A1_1 
+'
+
+AE_long.fit <- cfa(AE_long, data = mydata_wide, missing = "ML", group = "zy_final_all")
+summary(AE_long.fit)
+semPaths(AE_long.fit)
+
+#Similar story to RRB
+#Model didn't converge -- "covariance is not positive definite"
+#Yet no negative correlations or correlations > 1 
+inspect(AE_long.fit, "cov.lv")
+inspect(AE_long.fit, "cor.lv")
+```
