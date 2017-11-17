@@ -1,0 +1,515 @@
+---
+title: "SEM & Lavaan part 2"
+author: "Zoë Hawks"
+date: "10/27/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r import, include = FALSE, message = FALSE, warning = FALSE}
+#importing datasets
+setwd("/Users/zashawks/Desktop/PNL/PKU/Verbal Fluency/Round 2 Analyses")
+mydata <- read.csv("Master_data-new.csv", header = T)
+
+setwd("/Users/zashawks/Desktop/Stats/Longitudinal/ALDA")
+library(tidyverse)
+library(tibble)
+library(lubridate)
+library(lavaan)
+library(semPlot)
+library(semTools)
+library(dplyr)
+library(tidyverse)
+library(MASS)
+library(psych)
+
+#Converting group into factor variable (0 = Control, 1 = PKU)
+mydata$GROUP <- as.factor(mydata$GROUP)
+
+#Creating averages
+mydata$Sem_TotalCorrect <- (mydata$Animal_TotalCorrect + mydata$Food_TotalCorrect)
+mydata$Pho_TotalCorrect <- (mydata$F_TotalCorrect + mydata$S_TotalCorrect)
+
+mydata$Sem_TotalUtterances <- (mydata$Animal_TotalUtterances + mydata$Food_TotalUtterances)
+mydata$Pho_TotalUtterances <- (mydata$F_TotalUtterances + mydata$S_TotalUtterances)
+
+mydata$Sem_Switches <- (mydata$Animal_Switches + mydata$Food_Switches)
+mydata$Pho_Switches <- (mydata$F_Switches + mydata$S_Switches)
+
+mydata$Sem_N_Clusters <- (mydata$Animal_N_Clusters + mydata$Food_N_Clusters)
+mydata$Pho_N_Clusters <- (mydata$F_N_Clusters + mydata$S_N_Clusters)
+
+mydata$Sem_TW_Clusters <- (mydata$Animal_TW_Clusters + mydata$Food_TW_Clusters)
+mydata$Pho_TW_Clusters <- (mydata$F_TW_Clusters + mydata$S_TW_Clusters)
+
+mydata$Animal_Mean_Clusters <- mydata$Animal_TW_Clusters/mydata$Animal_N_Clusters
+mydata$Food_Mean_Clusters <- mydata$Food_TW_Clusters/mydata$Food_N_Clusters
+mydata$F_Mean_Clusters <- mydata$F_TW_Clusters/mydata$F_N_Clusters
+mydata$S_Mean_Clusters <- mydata$S_TW_Clusters/mydata$S_N_Clusters
+
+mydata$Sem_Mean_Clusters <- (mydata$Animal_Mean_Clusters + mydata$Food_Mean_Clusters)
+mydata$Pho_Mean_Clusters <- (mydata$F_Mean_Clusters + mydata$S_Mean_Clusters)
+
+mydata$Sem_Errors <- (mydata$Animal_TotalUtterances + mydata$Food_TotalUtterances) -
+  (mydata$Animal_TotalCorrect + mydata$Food_TotalCorrect)
+mydata$Pho_Errors <- (mydata$F_TotalUtterances + mydata$S_TotalUtterances) -
+  (mydata$F_TotalCorrect + mydata$S_TotalCorrect)
+
+mydata$Sem_Singletons <- (mydata$Animal_TotalUtterances + mydata$Food_TotalUtterances) -
+  (mydata$Animal_TW_Clusters + mydata$Food_TW_Clusters) - 
+  (mydata$Animal_N_Clusters + mydata$Food_N_Clusters)
+mydata$Pho_Singletons <- (mydata$F_TotalUtterances + mydata$S_TotalUtterances) -
+  (mydata$F_TW_Clusters + mydata$S_TW_Clusters) -
+  (mydata$F_N_Clusters + mydata$S_N_Clusters)
+```
+
+```{r, warning=FALSE, message=FALSE, include = FALSE}
+##Raw score distributions & normalization
+#Total Correct
+hist(mydata$Sem_TotalCorrect)
+qqnorm(mydata$Sem_TotalCorrect)
+qqline(mydata$Sem_TotalCorrect)
+
+hist(mydata$Pho_TotalCorrect)
+qqnorm(mydata$Pho_TotalCorrect)
+qqline(mydata$Pho_TotalCorrect)
+
+psych::describe(mydata$Sem_TotalCorrect)
+psych::describe(mydata$Pho_TotalCorrect)
+
+#Phomenic data aren't normally distributed --> apply transformation
+#Determining optimal lambda
+trans1 <- boxcox(lm(mydata$Pho_TotalCorrect ~ 1), plotit = T)
+range(trans1$x[trans1$y > max(trans1$y)-qchisq(0.95,1)/2]) #95% lambda range
+trans_df = as.data.frame(trans1) #optimal lambda
+optimal_lambda1 = trans_df[which.max(trans1$y),1]
+optimal_lambda1 #optimal lambda = .2626263
+#Applying transform to data
+mydata$Pho_TotalCorrect_BOX <- (mydata$Pho_TotalCorrect)^optimal_lambda1
+describe(mydata$Pho_TotalCorrect_BOX)
+hist(mydata$Pho_TotalCorrect_BOX)
+qqnorm(mydata$Pho_TotalCorrect_BOX)
+qqline(mydata$Pho_TotalCorrect_BOX)
+mydata$Pho_TotalCorrect_BOX <- scale(mydata$Pho_TotalCorrect_BOX) #z-score Box-Cox transforms
+
+##############################
+
+#Switches
+hist(mydata$Sem_Switches)
+qqnorm(mydata$Sem_Switches)
+qqline(mydata$Sem_Switches)
+
+hist(mydata$Pho_Switches)
+qqnorm(mydata$Pho_Switches)
+qqline(mydata$Pho_Switches)
+
+psych::describe(mydata$Sem_Switches)
+
+#Phomenic data aren't normally distributed --> apply transformation
+#Determining optimal lambda
+trans1 <- boxcox(lm(mydata$Pho_Switches ~ 1), plotit = T)
+range(trans1$x[trans1$y > max(trans1$y)-qchisq(0.95,1)/2]) #95% lambda range
+trans_df = as.data.frame(trans1) #optimal lambda
+optimal_lambda1 = trans_df[which.max(trans1$y),1]
+optimal_lambda1 #optimal labmda = .1010101
+#Applying transform to data
+mydata$Pho_Switches_BOX <- (mydata$Pho_Switches)^optimal_lambda1
+describe(mydata$Pho_Switches_BOX)
+hist(mydata$Pho_Switches_BOX)
+qqnorm(mydata$Pho_Switches_BOX)
+qqline(mydata$Pho_Switches_BOX)
+mydata$Pho_Switches_BOX <- scale(mydata$Pho_Switches_BOX)
+
+##########################
+
+#N_Clusters
+hist(mydata$Sem_N_Clusters)
+qqnorm(mydata$Sem_N_Clusters)
+qqline(mydata$Sem_N_Clusters)
+
+hist(mydata$Pho_N_Clusters)
+qqnorm(mydata$Pho_N_Clusters)
+qqline(mydata$Pho_N_Clusters)
+
+psych::describe(mydata$Sem_N_Clusters)
+psych::describe(mydata$Pho_N_Clusters)
+
+#Phomenic data aren't normally distributed --> apply transformation
+#Determining optimal lambda
+trans1 <- boxcox(lm(mydata$Pho_N_Clusters ~ 1), plotit = T)
+range(trans1$x[trans1$y > max(trans1$y)-qchisq(0.95,1)/2]) #95% lambda range
+trans_df = as.data.frame(trans1) #optimal lambda
+optimal_lambda1 = trans_df[which.max(trans1$y),1]
+optimal_lambda1 #optimal lambda = .3434343
+#Applying transform to data
+mydata$Pho_N_Clusters_BOX <- (mydata$Pho_N_Clusters)^optimal_lambda1
+psych::describe(mydata$Pho_N_Clusters_BOX)
+hist(mydata$Pho_N_Clusters_BOX)
+qqnorm(mydata$Pho_N_Clusters_BOX)
+qqline(mydata$Pho_N_Clusters_BOX)
+mydata$Pho_N_Clusters_BOX <- scale(mydata$Pho_N_Clusters_BOX)
+
+#########################
+
+#TotalUtterances
+hist(mydata$Sem_TotalUtterances)
+qqnorm(mydata$Sem_TotalUtterances)
+qqline(mydata$Sem_TotalUtterances)
+
+hist(mydata$Pho_TotalUtterances)
+qqnorm(mydata$Pho_TotalUtterances)
+qqline(mydata$Pho_TotalUtterances)
+
+psych::describe(mydata$Sem_TotalUtterances)
+psych::describe(mydata$Pho_TotalUtterances)
+
+#Phomenic data aren't normally distributed --> apply transformation
+#Determining optimal lambda
+trans1 <- boxcox(lm(mydata$Pho_TotalUtterances ~ 1), plotit = T)
+range(trans1$x[trans1$y > max(trans1$y)-qchisq(0.95,1)/2]) #95% lambda range
+trans_df = as.data.frame(trans1) #optimal lambda
+optimal_lambda1 = trans_df[which.max(trans1$y),1]
+optimal_lambda1 #.06060606
+#Applying transform to data
+mydata$Pho_TotalUtterances_BOX <- (mydata$Pho_TotalUtterances)^optimal_lambda1
+describe(mydata$Pho_TotalUtterances_BOX)
+hist(mydata$Pho_TotalUtterances_BOX)
+qqnorm(mydata$Pho_TotalUtterances_BOX)
+qqline(mydata$Pho_TotalUtterances_BOX)
+mydata$Pho_TotalUtterances_BOX <- scale(mydata$Pho_TotalUtterances_BOX)
+
+#########################
+
+#TW_Clusters
+hist(mydata$Sem_TW_Clusters)
+qqnorm(mydata$Sem_TW_Clusters)
+qqline(mydata$Sem_TW_Clusters)
+
+hist(mydata$Pho_TW_Clusters)
+qqnorm(mydata$Pho_TW_Clusters)
+qqline(mydata$Pho_TW_Clusters)
+
+# psych::describe(mydata$Sem_TW_Clusters)
+# mydata <- subset(mydata,!(mydata$Sem_TW_Clusters < 0))
+# psych::describe(mydata$Sem_TW_Clusters)
+# psych::describe(mydata$Pho_TW_Clusters)
+
+#Phomenic data aren't normally distributed --> apply transformation
+#Determining optimal lambda
+trans1 <- boxcox(lm(mydata$Pho_TW_Clusters ~ 1), plotit = T)
+range(trans1$x[trans1$y > max(trans1$y)-qchisq(0.95,1)/2]) #95% lambda range
+trans_df = as.data.frame(trans1) #optimal lambda
+optimal_lambda1 = trans_df[which.max(trans1$y),1]
+optimal_lambda1 #optimal lambda = .3030303
+#Applying transform to data
+mydata$Pho_TW_Clusters_BOX <- (mydata$Pho_TW_Clusters)^optimal_lambda1
+describe(mydata$Pho_TW_Clusters_BOX)
+hist(mydata$Pho_TW_Clusters_BOX)
+qqnorm(mydata$Pho_TW_Clusters_BOX)
+qqline(mydata$Pho_TW_Clusters_BOX)
+mydata$Pho_TW_Clusters_BOX <- scale(mydata$Pho_TW_Clusters_BOX)
+
+###############################
+
+#ERRORS
+#Determining optimal lambda
+psych::describe(mydata$Pho_Errors)
+mydata$Pho_Errors_Plus <- mydata$Pho_Errors + 1
+trans1 <- boxcox(lm(mydata$Pho_Errors_Plus ~ 1), plotit = T)
+range(trans1$x[trans1$y > max(trans1$y)-qchisq(0.95,1)/2]) #95% lambda range
+trans_df = as.data.frame(trans1) #optimal lambda
+optimal_lambda1 = trans_df[which.max(trans1$y),1]
+optimal_lambda1 #optimal labmda = .3434343
+#Applying transform to data
+mydata$Pho_Errors_BOX <- (mydata$Pho_Errors)^optimal_lambda1
+psych::describe(mydata$Pho_Errors_BOX)
+hist(mydata$Pho_Errors_BOX)
+qqnorm(mydata$Pho_Errors_BOX)
+qqline(mydata$Pho_Errors_BOX)
+mydata$Pho_Errors_BOX <- scale(mydata$Pho_Errors_BOX)
+
+##############################
+
+#Singletons
+#Determining optimal lambda
+psych::describe(mydata$Pho_Singletons)
+trans1 <- boxcox(lm(mydata$Pho_Singletons ~ 1), plotit = T)
+range(trans1$x[trans1$y > max(trans1$y)-qchisq(0.95,1)/2]) #95% lambda range
+trans_df = as.data.frame(trans1) #optimal lambda
+optimal_lambda1 = trans_df[which.max(trans1$y),1]
+optimal_lambda1 #optimal labmda = .1414141
+#Applying transform to data
+mydata$Pho_Singletons_BOX <- (mydata$Pho_Singletons)^optimal_lambda1
+psych::describe(mydata$Pho_Singletons_BOX)
+hist(mydata$Pho_Singletons_BOX)
+qqnorm(mydata$Pho_Singletons_BOX)
+qqline(mydata$Pho_Singletons_BOX)
+mydata$Pho_Singletons_BOX <- scale(mydata$Pho_Singletons_BOX)
+
+##############################
+
+#Mean_Clusters
+#Determining optimal lambda
+psych::describe(mydata$Pho_Mean_Clusters)
+trans1 <- boxcox(lm(mydata$Pho_Mean_Clusters ~ 1), plotit = T)
+range(trans1$x[trans1$y > max(trans1$y)-qchisq(0.95,1)/2]) #95% lambda range
+trans_df = as.data.frame(trans1) #optimal lambda
+optimal_lambda1 = trans_df[which.max(trans1$y),1]
+optimal_lambda1 #optimal labmda = -.9090909
+#Applying transform to data
+mydata$Pho_Mean_Clusters_BOX <- (mydata$Pho_Mean_Clusters)^optimal_lambda1
+psych::describe(mydata$Pho_Mean_Clusters_BOX)
+hist(mydata$Pho_Mean_Clusters_BOX)
+qqnorm(mydata$Pho_Mean_Clusters_BOX)
+qqline(mydata$Pho_Mean_Clusters_BOX)
+mydata$Pho_Mean_Clusters_BOX <- scale(mydata$Pho_Mean_Clusters_BOX)
+
+###################################
+
+##Long to wide form
+mydata_wide <- mydata %>% dplyr::select(-Age_at_timepoint_1) %>%
+  gather(-c(ID2, Timepoint, GROUP), key = "variable", value = "value") %>%
+  unite(varT, variable, Timepoint) %>%
+  spread(key = varT, value = value)
+
+mydata_wide$Animal_TW_Clusters_1 <- as.numeric(scale(as.numeric(mydata_wide$Animal_TW_Clusters_1)))
+mydata_wide$Food_TW_Clusters_1 <- as.numeric(scale(as.numeric(mydata_wide$Food_TW_Clusters_1)))
+mydata_wide$Food_Switches_1 <- as.numeric(scale(as.numeric(mydata_wide$Food_Switches_1)))
+mydata_wide$Animal_Switches_1 <- as.numeric(scale(as.numeric(mydata_wide$Animal_Switches_1)))
+mydata_wide$IQ_vocraw_1 <- as.numeric(scale(as.numeric(mydata_wide$IQ_vocraw_1)))
+mydata_wide$IQ_mrraw_1 <- as.numeric(scale(as.numeric(mydata_wide$IQ_mrraw_1)))
+mydata_wide$GROUP <- as.factor(mydata_wide$GROUP) 
+mydata_wide$Age_at_time_of_testing_1 <- as.numeric(mydata_wide$Age_at_time_of_testing_1) 
+#is this right to treat group as numeric? Summary doesn't provide AIC, BIC otherwise
+```
+
+##Longitudinal model
+```{r, warning = FALSE, message = FALSE}
+mydata_wide$Animal_TW_Clusters_2 <- as.numeric(scale(as.numeric(mydata_wide$Animal_TW_Clusters_2)))
+mydata_wide$Animal_TW_Clusters_3 <- as.numeric(scale(as.numeric(mydata_wide$Animal_TW_Clusters_3)))
+mydata_wide$Food_TW_Clusters_2 <- as.numeric(scale(as.numeric(mydata_wide$Food_TW_Clusters_2)))
+mydata_wide$Food_TW_Clusters_3 <- as.numeric(scale(as.numeric(mydata_wide$Food_TW_Clusters_3)))
+mydata_wide$IQ_vocraw_2 <- as.numeric(scale(as.numeric(mydata_wide$IQ_vocraw_2)))
+mydata_wide$IQ_vocraw_3 <- as.numeric(scale(as.numeric(mydata_wide$IQ_vocraw_3)))
+
+Long.mod <- ' 
+            Semantic_1 =~ Animal_TW_Clusters_1 + Food_TW_Clusters_1 + IQ_vocraw_1
+            Semantic_2 =~ Animal_TW_Clusters_2 + Food_TW_Clusters_2 + IQ_vocraw_2
+            Semantic_3 =~ Animal_TW_Clusters_3 + Food_TW_Clusters_3 + IQ_vocraw_3
+
+            ##correlated residuals across time
+            Animal_TW_Clusters_1 ~~ Animal_TW_Clusters_2 + Animal_TW_Clusters_3
+            Animal_TW_Clusters_2 ~~ Animal_TW_Clusters_3
+            Food_TW_Clusters_1 ~~ Food_TW_Clusters_2 + Food_TW_Clusters_3
+            Food_TW_Clusters_2 ~~ Food_TW_Clusters_3
+            IQ_vocraw_1 ~~ IQ_vocraw_2 + IQ_vocraw_3
+            IQ_vocraw_2 ~~ IQ_vocraw_3
+'
+
+fit.long <- cfa(Long.mod, data=mydata_wide, meanstructure = TRUE, std.lv = T, missing = "ML")
+summary(fit.long, fit.measures = T)
+semPaths(fit.long)
+semPaths(fit.long, what = "est")
+```
+
+
+## 10. Test measurement invariance across time for your construct. Can you run growth models? If there is evidence of non-invariance, what seems to be the problem?  
+
+My model is measurment invariant, suggesting that I'm measuring the same thing across time and allowing me to run growth models.
+```{r}
+#Step 1 -- configural model
+config.fit <- fit.long
+summary(config.fit, standardized = TRUE, fit.measures = T)
+semPaths(config.fit)
+semPaths(config.fit, what = "est")
+
+#Step 2 -- weak model; constrain factor loadings to be the same across time
+weak <- ' 
+            ##define latent factors, constrain factor loadings
+            Semantic_1 =~ L1*Animal_TW_Clusters_1 + L2*Food_TW_Clusters_1 + L3*IQ_vocraw_1
+            Semantic_2 =~ L1*Animal_TW_Clusters_2 + L2*Food_TW_Clusters_2 + L3*IQ_vocraw_2
+            Semantic_3 =~ L1*Animal_TW_Clusters_3 + L2*Food_TW_Clusters_3 + L3*IQ_vocraw_3
+
+            ##free latent variables at later time points
+            Semantic_2 ~~ NA*Semantic_2
+            Semantic_3 ~~ NA*Semantic_3
+
+            ##correlated residuals across time
+            Animal_TW_Clusters_1 ~~ Animal_TW_Clusters_2 + Animal_TW_Clusters_3
+            Animal_TW_Clusters_2 ~~ Animal_TW_Clusters_3
+            Food_TW_Clusters_1 ~~ Food_TW_Clusters_2 + Food_TW_Clusters_3
+            Food_TW_Clusters_2 ~~ Food_TW_Clusters_3
+            IQ_vocraw_1 ~~ IQ_vocraw_2 + IQ_vocraw_3
+            IQ_vocraw_2 ~~ IQ_vocraw_3
+'
+
+weak.fit <- cfa(weak, data=mydata_wide, meanstructure = TRUE, std.lv = T, missing = "ML")
+summary(weak.fit, standardized = TRUE, fit.measures = T)
+semPaths(weak.fit)
+semPaths(weak.fit, what = "est")
+
+#Compare models -- difference is not significant -- no evidence thus far of non-invariance
+anova(config.fit, weak.fit)
+
+#Also look at change in CFI
+print(fitMeasures(weak.fit, "cfi") - fitMeasures(config.fit, "cfi")) < .01
+
+#Step 3 -- strong model; constrain means/intercepts of indicators to be equal
+strong <-  '
+            ##define latent factors, constrain factor loadings
+            Semantic_1 =~ L1*Animal_TW_Clusters_1 + L2*Food_TW_Clusters_1 + L3*IQ_vocraw_1
+            Semantic_2 =~ L1*Animal_TW_Clusters_2 + L2*Food_TW_Clusters_2 + L3*IQ_vocraw_2
+            Semantic_3 =~ L1*Animal_TW_Clusters_3 + L2*Food_TW_Clusters_3 + L3*IQ_vocraw_3
+
+            ##free latent variables at later time points
+            Semantic_2 ~~ NA*Semantic_2
+            Semantic_3 ~~ NA*Semantic_3
+
+            ##correlated residuals across time
+            Animal_TW_Clusters_1 ~~ Animal_TW_Clusters_2 + Animal_TW_Clusters_3
+            Animal_TW_Clusters_2 ~~ Animal_TW_Clusters_3
+            Food_TW_Clusters_1 ~~ Food_TW_Clusters_2 + Food_TW_Clusters_3
+            Food_TW_Clusters_2 ~~ Food_TW_Clusters_3
+            IQ_vocraw_1 ~~ IQ_vocraw_2 + IQ_vocraw_3
+            IQ_vocraw_2 ~~ IQ_vocraw_3
+
+            ##constrain intercepts across time
+            Animal_TW_Clusters_1 ~ A*1
+            Food_TW_Clusters_1 ~   B*1
+            IQ_vocraw_1 ~          C*1
+
+            Animal_TW_Clusters_2 ~ A*1
+            Food_TW_Clusters_2 ~   B*1
+            IQ_vocraw_2 ~          C*1
+
+            Animal_TW_Clusters_3 ~ A*1
+            Food_TW_Clusters_3 ~   B*1
+            IQ_vocraw_3 ~          C*1
+
+            ##free latent means at later times
+            Semantic_2 ~ NA*1
+            Semantic_3 ~ NA*1
+'
+
+strong.fit <- cfa(strong, data=mydata_wide, meanstructure = TRUE, std.lv = T, missing = "ML")
+summary(strong.fit, standardized = TRUE, fit.measures = T)
+semPaths(strong.fit)
+semPaths(strong.fit, what = "est")
+
+#Compare models -- difference is not significant -- no evidence thus far of non-invariance
+anova(weak.fit, strong.fit)
+
+#Also look at change in CFI
+#Change in CFI = .012, which is greater than .01 threshold but not by much
+#On the whole, model appears to be measurement invariant
+print(fitMeasures(strong.fit, "cfi") - fitMeasures(weak.fit, "cfi")) < .01
+```
+
+## 11. Fit a second order growth model. Compare and contrast the estimates with the normal latent growth model.  
+
+Estimates are fairly similar, although not identical, using second and first-order growth models (see comb2 dataframe). However, as discussed in class, the second-order model is preferred because it allows us to test for measurment invariance and account for occasion-specific variance. Likewise, it hugely improves model fit (e.g., TLI .64 vs. .98).
+```{r, warning = F, message = F}
+#Second order growth model
+second_order <- ' 
+            ##define latent factors, constrain factor loadings
+            Semantic_1 =~ NA*Animal_TW_Clusters_1 + L1*Animal_TW_Clusters_1 + L2*Food_TW_Clusters_1 + L3*IQ_vocraw_1
+            Semantic_2 =~ NA*Animal_TW_Clusters_2 + L1*Animal_TW_Clusters_2 + L2*Food_TW_Clusters_2 + L3*IQ_vocraw_2
+            Semantic_3 =~ NA*Animal_TW_Clusters_3 + L1*Animal_TW_Clusters_3 + L2*Food_TW_Clusters_3 + L3*IQ_vocraw_3
+
+            ##correlated residuals across time
+            Animal_TW_Clusters_1 ~~ Animal_TW_Clusters_2 + Animal_TW_Clusters_3
+            Animal_TW_Clusters_2 ~~ Animal_TW_Clusters_3
+            Food_TW_Clusters_1 ~~ Food_TW_Clusters_2 + Food_TW_Clusters_3
+            Food_TW_Clusters_2 ~~ Food_TW_Clusters_3
+            IQ_vocraw_1 ~~ IQ_vocraw_2 + IQ_vocraw_3
+            IQ_vocraw_2 ~~ IQ_vocraw_3
+
+            ##constrain intercepts across time
+            Animal_TW_Clusters_1 ~ A*1
+            Food_TW_Clusters_1 ~   B*1
+            IQ_vocraw_1 ~          C*1
+
+            Animal_TW_Clusters_2 ~ A*1
+            Food_TW_Clusters_2 ~   B*1
+            IQ_vocraw_2 ~          C*1
+
+            Animal_TW_Clusters_3 ~ A*1
+            Food_TW_Clusters_3 ~   B*1
+            IQ_vocraw_3 ~          C*1
+
+            ##latent variable intercepts
+            Semantic_1 ~ 0*1
+            Semantic_2 ~ 0*1
+            Semantic_3 ~ 0*1
+
+            
+            ##CHOSING NOT TO IMPLEMENT EFFECT CODING TO FACILIATE COMPARISON OF ESTIMATES WITH NORMAL LATENT MODEL
+            ##model constraints for effect coding
+            ##loadings must average to 1
+            ##L1 == 3 - L2 - L3
+            ##means must average to 0
+            ##A == 0 - B - C
+
+            ##Define latent factors for slope and intercept
+            i =~ 1*Semantic_1 + 1*Semantic_2 + 1*Semantic_3
+            s =~ 0*Semantic_1 + 1*Semantic_2 + 2*Semantic_3
+'
+
+second_order.fit <- cfa(second_order, data=mydata_wide, meanstructure = TRUE, missing = "ML")
+#"WARNING: some estimate lv variances are negative"
+#Indicates that there's not much variance in the slope
+#Tried playing around with constraints, then model failed to converge or got I the "not positive definite" message
+#How bad are negative lv variances? Given they're only slightly negative, can the model still be trusted?
+summary(second_order.fit, standardized = TRUE, fit.measures = T)
+semPaths(second_order.fit)
+semPaths(second_order.fit, what = "est")
+
+#Normal latent growth model
+first_order <- '
+              i =~ 1*Animal_TW_Clusters_1 + 1*Food_TW_Clusters_1 + 1*IQ_vocraw_1 +
+                   1*Animal_TW_Clusters_2 + 1*Food_TW_Clusters_2 + 1*IQ_vocraw_1 +
+                   1*Animal_TW_Clusters_3 + 1*Food_TW_Clusters_3 + 1*IQ_vocraw_3
+              s =~ 0*Animal_TW_Clusters_1 + 0*Food_TW_Clusters_1 + 0*IQ_vocraw_1 +
+                   1*Animal_TW_Clusters_2 + 1*Food_TW_Clusters_2 + 1*IQ_vocraw_1 +
+                   2*Animal_TW_Clusters_3 + 2*Food_TW_Clusters_3 + 2*IQ_vocraw_3
+'
+
+##Compare and contrast estimates with normal latent growth model
+first_order.fit <- cfa(first_order, data=mydata_wide, meanstructure = TRUE, missing = "ML")
+#"WARNING: some estimate lv variances are negative"
+#Indicates that there's not much variance in the slope
+#Tried playing around with constraints, then model failed to converge or got I the "not positive definite" message
+#How bad are negative lv variances? Given they're only slightly negative, can the model still be trusted?
+summary(first_order.fit, standardized = TRUE, fit.measures = T)
+semPaths(first_order.fit)
+semPaths(first_order.fit, what = "est")
+
+##Grab estimates for normal and second-order models
+long_mod <- as_tibble(parameterEstimates(first_order.fit)) %>%
+  dplyr::select(1:4) %>%
+  rename("Est_long" = "est") %>%
+  unite(Var, lhs, op, rhs)
+
+sec_mod <- as_tibble(parameterEstimates(second_order.fit)) %>%
+  dplyr::select(c(1,2,3,5)) %>%
+  rename("Est_second" = "est") %>%
+  unite(Var, lhs, op, rhs)
+
+##Create data frame to visualize estimates for normal and second order models side by side
+comb <- full_join(long_mod, sec_mod, by= "Var") %>%
+  mutate_at(c("Est_long", "Est_second"), funs(round(., 3)))
+comb2 <- comb[17:35,]
+
+##Evaluating fit
+fitMeasures(first_order.fit, c("tli", "cfi", "rmsea", "srmr", "chisq"))
+fitMeasures(second_order.fit, c("tli", "cfi", "rmsea", "srmr", "chisq"))
+```
+
+## 12. Fit a series of multiple group models. Constrain some parameters and compare the fit.
+```{r}
+#TBC...
+```
+
