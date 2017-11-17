@@ -508,8 +508,144 @@ fitMeasures(first_order.fit, c("tli", "cfi", "rmsea", "srmr", "chisq"))
 fitMeasures(second_order.fit, c("tli", "cfi", "rmsea", "srmr", "chisq"))
 ```
 
-## 12. Fit a series of multiple group models. Constrain some parameters and compare the fit.
-```{r}
-#TBC...
+## 12. Fit a series of multiple group models. Constrain some parameters and compare the fit.  
+
+Group 1 = PKU  
+Group 0 = Control  
+
+I fit group models to evaluate whether longitudinal trajectories in semantic performance differs as a function of group (i.e., PKU vs. Control). When I constrained the latent intercepts to be equal, there was no difference between groups, suggesting that latent means at T1, T2, and T3 do not differ between PKU and Control individuals However, when I constrained both intercepts and factor loadings, there was a trending effect (p = .052), suggesting that the relationship between indicators and latent factors may differ by group. I achieved this result two ways: (1) by constraining values within model code and (2) by specifying constraints within the cfa() function.
+```{r, warning = FALSE, message = FALSE}
+Groups.mod <- '
+            Semantic_1 =~ Animal_TW_Clusters_1 + Food_TW_Clusters_1 + IQ_vocraw_1
+            Semantic_2 =~ Animal_TW_Clusters_2 + Food_TW_Clusters_2 + IQ_vocraw_2
+            Semantic_3 =~ Animal_TW_Clusters_3 + Food_TW_Clusters_3 + IQ_vocraw_3
+
+            ##correlated residuals across time
+            Animal_TW_Clusters_1 ~~ Animal_TW_Clusters_2 + Animal_TW_Clusters_3
+            Animal_TW_Clusters_2 ~~ Animal_TW_Clusters_3
+            Food_TW_Clusters_1 ~~ 0*Food_TW_Clusters_2 + 0*Food_TW_Clusters_3
+            Food_TW_Clusters_2 ~~ Food_TW_Clusters_3
+            IQ_vocraw_1 ~~ IQ_vocraw_2 + IQ_vocraw_3
+            IQ_vocraw_2 ~~ IQ_vocraw_3
+
+            Semantic_1 ~~ NA*Semantic_2 + NA*Semantic_3
+            Semantic_2 ~~ c(1,1)*Semantic_3
+'
+
+Groups.mod.fit <- cfa(Groups.mod, missing = "ML", data=mydata_wide, std.lv=TRUE, group = "GROUP")
+
+inspect(Groups.mod.fit, "cor.lv")
+inspect(Groups.mod.fit, "cov.lv")
+summary(Groups.mod.fit, standardized = TRUE, fit.measures = T)
+#Contrained 0*Food_TW_Clusters_2 and 0*Food_TW_Clusters_3 onto 0*Food_TW_Clusters_1 to get rid of negative values in covariance matrix of the residuals
+#Likewise, constrained c(1,1)*Semantic_3 onto Semantic_2 because correlation was negative
+#Nonetheless, get "not positive definite" error message. But values look fine so... let's move ahead
+
+semPaths(Groups.mod.fit)
+semPaths(Groups.mod.fit, what = "est")
+
+##What if we want intercepts to be the same between groups?
+Groups.mod2 <- '
+            Semantic_1 =~ Animal_TW_Clusters_1 + Food_TW_Clusters_1 + IQ_vocraw_1
+            Semantic_2 =~ Animal_TW_Clusters_2 + Food_TW_Clusters_2 + IQ_vocraw_2
+            Semantic_3 =~ Animal_TW_Clusters_3 + Food_TW_Clusters_3 + IQ_vocraw_3
+
+            ##correlated residuals across time
+            Animal_TW_Clusters_1 ~~ Animal_TW_Clusters_2 + Animal_TW_Clusters_3
+            Animal_TW_Clusters_2 ~~ Animal_TW_Clusters_3
+            Food_TW_Clusters_1 ~~ 0*Food_TW_Clusters_2 + 0*Food_TW_Clusters_3
+            Food_TW_Clusters_2 ~~ Food_TW_Clusters_3
+            IQ_vocraw_1 ~~ IQ_vocraw_2 + IQ_vocraw_3
+            IQ_vocraw_2 ~~ IQ_vocraw_3
+
+            Semantic_1 ~ c(x, x)*1
+            Semantic_2 ~ c(y, y)*1
+            Semantic_3 ~ c(z, z)*1
+
+            Semantic_1 ~~ NA*Semantic_2 + NA*Semantic_3
+            Semantic_2 ~~ c(1,1)*Semantic_3
+'
+
+Groups.mod.fit2 <- cfa(Groups.mod2, missing = "ML", data=mydata_wide, std.lv=TRUE, group = "GROUP")
+
+inspect(Groups.mod.fit2, "cor.lv")
+inspect(Groups.mod.fit2, "cov.lv")
+summary(Groups.mod.fit2, standardized = TRUE, fit.measures = T)
+#As above, "not positive definite" but values look fine so... continuing to move ahead
+
+semPaths(Groups.mod.fit2)
+semPaths(Groups.mod.fit2, what = "est")
+
+#Constraining latent factor intercepts does not significantly change the fit of the model, suggesting that latent means are the same between groups
+anova(Groups.mod.fit, Groups.mod.fit2)
+
+##What if we want intercepts and loadings to be the same between groups (and across time-points)?
+Groups.mod3 <- '
+            Semantic_1 =~ c(L1, L1)*Animal_TW_Clusters_1 + c(L2, L2)*Food_TW_Clusters_1 + c(L3, L3)*IQ_vocraw_1
+            Semantic_2 =~ c(L1, L1)*Animal_TW_Clusters_2 + c(L2, L2)*Food_TW_Clusters_2 + c(L3, L3)*IQ_vocraw_2
+            Semantic_3 =~ c(L1, L1)*Animal_TW_Clusters_3 + c(L2, L2)*Food_TW_Clusters_3 + c(L3, L3)*IQ_vocraw_3
+
+            ##correlated residuals across time
+            Animal_TW_Clusters_1 ~~ Animal_TW_Clusters_2 + Animal_TW_Clusters_3
+            Animal_TW_Clusters_2 ~~ Animal_TW_Clusters_3
+            Food_TW_Clusters_1 ~~ 0*Food_TW_Clusters_2 + 0*Food_TW_Clusters_3
+            Food_TW_Clusters_2 ~~ Food_TW_Clusters_3
+            IQ_vocraw_1 ~~ IQ_vocraw_2 + IQ_vocraw_3
+            IQ_vocraw_2 ~~ IQ_vocraw_3
+
+            Semantic_1 ~ c(x, x)*1
+            Semantic_2 ~ c(y, y)*1
+            Semantic_3 ~ c(z, z)*1
+
+            Semantic_1 ~~ NA*Semantic_2 + NA*Semantic_3
+            Semantic_2 ~~ c(1,1)*Semantic_3
+'
+
+Groups.mod.fit3 <- cfa(Groups.mod3, missing = "ML", data=mydata_wide, std.lv=TRUE, group = "GROUP")
+
+inspect(Groups.mod.fit3, "cor.lv")
+inspect(Groups.mod.fit3, "cov.lv")
+summary(Groups.mod.fit3, standardized = TRUE, fit.measures = T)
+
+semPaths(Groups.mod.fit3)
+semPaths(Groups.mod.fit3, what = "est")
+
+#Constraining latent factor intercepts and loadings changes the model (albeit insignificantly; p = .052), suggesting that relationship between indicators and latent factors may differ between groups
+anova(Groups.mod.fit, Groups.mod.fit3)
+
+##Do we get the same result if we fix intercepts and loadings in the cfa() function rather than in the code?
+Groups.mod4 <- '
+            Semantic_1 =~ Animal_TW_Clusters_1 + Food_TW_Clusters_1 + IQ_vocraw_1
+            Semantic_2 =~ Animal_TW_Clusters_2 + Food_TW_Clusters_2 + IQ_vocraw_2
+            Semantic_3 =~ Animal_TW_Clusters_3 + Food_TW_Clusters_3 + IQ_vocraw_3
+
+            ##correlated residuals across time
+            Animal_TW_Clusters_1 ~~ Animal_TW_Clusters_2 + Animal_TW_Clusters_3
+            Animal_TW_Clusters_2 ~~ Animal_TW_Clusters_3
+            Food_TW_Clusters_1 ~~ 0*Food_TW_Clusters_2 + 0*Food_TW_Clusters_3
+            Food_TW_Clusters_2 ~~ Food_TW_Clusters_3
+            IQ_vocraw_1 ~~ IQ_vocraw_2 + IQ_vocraw_3
+            IQ_vocraw_2 ~~ IQ_vocraw_3
+
+            Semantic_1 ~ 1
+            Semantic_2 ~ 1
+            Semantic_3 ~ 1
+
+            Semantic_1 ~~ NA*Semantic_2 + NA*Semantic_3
+            Semantic_2 ~~ c(1,1)*Semantic_3
+'
+
+Groups.mod.fit4 <- cfa(Groups.mod4, missing = "ML", data=mydata_wide, std.lv=TRUE, group = "GROUP",
+                       group.equal = c("loadings", "intercepts"))
+
+inspect(Groups.mod.fit4, "cor.lv")
+inspect(Groups.mod.fit4, "cov.lv")
+summary(Groups.mod.fit4, standardized = TRUE, fit.measures = T)
+
+semPaths(Groups.mod.fit4)
+semPaths(Groups.mod.fit4, what = "est")
+
+##As expected, models essentially the same, although fit statistics differ slightly. Due to the fact that we didn't constrain all loadings and/or all intercepts in Groups.mod.fit3?
+anova(Groups.mod.fit3, Groups.mod.fit4)
 ```
 
